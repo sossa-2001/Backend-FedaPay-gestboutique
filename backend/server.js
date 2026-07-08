@@ -98,9 +98,15 @@ app.post('/create-payment', async (req, res) => {
       customer,
     });
 
+    console.log('FedaPay response:', JSON.stringify(result, null, 2));
+
     const transaction = result?.v1?.transaction;
     if (!transaction) {
-      return res.status(500).json({ success: false, message: 'Réponse FedaPay invalide' });
+      const errMsg = result?.v1?.message
+        || result?.message
+        || JSON.stringify(result?.errors || result)
+        || 'Réponse FedaPay invalide';
+      return res.status(500).json({ success: false, message: errMsg });
     }
 
     const paymentUrl = transaction.payment_url?.url || null;
