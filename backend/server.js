@@ -13,7 +13,7 @@ const FEDAPAY_ENV = process.env.FEDAPAY_ENVIRONMENT || 'live';
 const FEDAPAY_BASE = FEDAPAY_ENV === 'sandbox'
   ? 'https://sandbox-api.fedapay.com/v1'
   : 'https://api.fedapay.com/v1';
-const CALLBACK_URL = process.env.CALLBACK_URL || 'https://gestboutique-backend.onrender.com/payment-redirect';
+const CALLBACK_URL = process.env.CALLBACK_URL || 'https://backend-fedapay-gestboutique.onrender.com/payment-redirect';
 const DEEP_LINK = process.env.DEEP_LINK || 'gestboutique://payment/status';
 
 const FEDAPAY_HEADERS = {
