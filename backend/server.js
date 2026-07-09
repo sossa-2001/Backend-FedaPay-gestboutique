@@ -100,9 +100,11 @@ app.post('/create-payment', async (req, res) => {
 
     console.log('FedaPay response:', JSON.stringify(result, null, 2));
 
-    const transaction = result?.v1?.transaction;
+    const txnWrapper = result?.['v1/transaction'];
+    const transaction = txnWrapper || result?.v1?.transaction;
     if (!transaction) {
-      const errMsg = result?.v1?.message
+      const errMsg = result?.['v1/message']
+        || result?.v1?.message
         || result?.message
         || JSON.stringify(result?.errors || result)
         || 'Réponse FedaPay invalide';
