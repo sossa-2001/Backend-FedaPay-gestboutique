@@ -109,7 +109,9 @@ app.post('/create-payment', async (req, res) => {
       return res.status(500).json({ success: false, message: errMsg });
     }
 
-    const paymentUrl = transaction.payment_url?.url || null;
+    const paymentUrl = transaction.payment_url?.url
+      || transaction.payment_url
+      || null;
 
     return res.json({
       success: true,
