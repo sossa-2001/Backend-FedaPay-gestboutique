@@ -32,7 +32,7 @@ class SubscriptionProvider extends ChangeNotifier {
       _subscription.startDate = DateTime.now();
       _subscription.expiryDate = DateTime.now().add(const Duration(minutes: 3));
       _subscription.lastPaymentDate = DateTime.now();
-      _subscription.planType = PlanType.soloStandard;
+      _subscription.planType = PlanType.soloProMulti;
       await _persist();
     }
     _initialized = true;

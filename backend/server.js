@@ -19,7 +19,6 @@ const FEDAPAY_BASE = FEDAPAY_ENV === 'sandbox'
   ? 'https://sandbox-api.fedapay.com/v1'
   : 'https://api.fedapay.com/v1';
 const CALLBACK_URL = process.env.CALLBACK_URL || 'https://backend-fedapay-gestboutique.onrender.com/payment-redirect';
-const DEEP_LINK = process.env.DEEP_LINK || 'gestboutique://payment/status';
 
 const FEDAPAY_HEADERS = {
   'Authorization': `Bearer ${FEDAPAY_SECRET_KEY}`,
@@ -173,8 +172,22 @@ app.get('/verify-payment/:id', async (req, res) => {
 // Redirection après paiement FedaPay (callback)
 app.get('/payment-redirect', (req, res) => {
   const { status, id } = req.query;
-  const redirectUrl = `${DEEP_LINK}?transaction_id=${id || ''}&status=${status || 'unknown'}`;
-  res.redirect(redirectUrl);
+  const result = status === 'approved' ? 'réussi' : status === 'declined' ? 'refusé' : 'annulé';
+  const icon = status === 'approved' ? '✅' : '❌';
+  res.send(`<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paiement ${result}</title>
+<style>body{font-family:sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#f5f5f5;text-align:center}
+.card{background:#fff;padding:40px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:400px}
+.icon{font-size:64px;margin-bottom:16px}
+h1{margin:0 0 8px;font-size:22px;color:#1a1a2e}
+p{margin:0 0 24px;color:#6b7280;font-size:14px}
+.btn{display:inline-block;padding:12px 32px;background:#1a73e8;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px}
+.btn:hover{background:#1557b0}</style></head><body>
+<div class="card"><div class="icon">${icon}</div>
+<h1>Paiement ${result}</h1>
+<p>Transaction #${id || 'N/A'}<br>Vous pouvez fermer cette page et revenir à l'application.</p>
+</div></body></html>`);
 });
 
 // Webhook FedaPay
