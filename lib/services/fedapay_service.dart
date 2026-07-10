@@ -87,9 +87,11 @@ class FedaPayService {
 
   static Future<bool> openPaymentUrl(String url) async {
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    try {
+      if (await canLaunchUrl(uri)) {
+        return await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (_) {}
     return false;
   }
 
@@ -98,7 +100,7 @@ class FedaPayService {
       final response = await http
           .get(
             Uri.parse(
-                '${FedaPayConfig.backendUrl}/verify-payment/$transactionId'),
+                '${FedaPayConfig.backendUrl}/transaction-status/$transactionId'),
             headers: {'Accept': 'application/json'},
           )
           .timeout(const Duration(seconds: 15));

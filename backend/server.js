@@ -2,14 +2,19 @@ require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
+const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
+
+// Raw body for webhook signature verification
+app.use('/fedapay-webhook', express.raw({ type: '*/*', limit: '10kb' }));
 
 const PORT = process.env.PORT || 3000;
 const FEDAPAY_SECRET_KEY = process.env.FEDAPAY_SECRET_KEY;
 const FEDAPAY_ENV = process.env.FEDAPAY_ENVIRONMENT || 'live';
+const FEDAPAY_WEBHOOK_SECRET = process.env.FEDAPAY_WEBHOOK_SECRET;
 const FEDAPAY_BASE = FEDAPAY_ENV === 'sandbox'
   ? 'https://sandbox-api.fedapay.com/v1'
   : 'https://api.fedapay.com/v1';
@@ -23,6 +28,15 @@ const FEDAPAY_HEADERS = {
 };
 
 // ---------- Helpers ----------
+
+function verifyWebhookSignature(payload, signature) {
+  if (!FEDAPAY_WEBHOOK_SECRET || !signature) return false;
+  const expected = crypto
+    .createHmac('sha256', FEDAPAY_WEBHOOK_SECRET)
+    .update(payload)
+    .digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
 
 function parsePhone(phone) {
   const digits = phone.replace(/[^0-9]/g, '');
@@ -164,8 +178,26 @@ app.get('/payment-redirect', (req, res) => {
 });
 
 // Webhook FedaPay
+const webhookApprovals = new Set();
+
 app.post('/fedapay-webhook', (req, res) => {
-  const event = req.body;
+  const signature = req.headers['x-fedapay-signature'];
+  const rawBody = req.body;
+
+  if (FEDAPAY_WEBHOOK_SECRET) {
+    if (!signature || !verifyWebhookSignature(rawBody, signature)) {
+      console.error('Signature webhook invalide');
+      return res.status(401).json({ error: 'Signature invalide' });
+    }
+  }
+
+  let event;
+  try {
+    event = JSON.parse(rawBody.toString());
+  } catch {
+    return res.status(400).json({ error: 'Payload invalide' });
+  }
+
   console.log('Webhook reçu:', JSON.stringify(event, null, 2));
 
   const type = event?.v1?.type || event?.type;
@@ -175,12 +207,15 @@ app.post('/fedapay-webhook', (req, res) => {
     switch (type) {
       case 'transaction.approved':
         console.log(`Transaction approuvée: ${transaction.id} - ${transaction.reference}`);
+        webhookApprovals.add(String(transaction.id));
         break;
       case 'transaction.declined':
         console.log(`Transaction refusée: ${transaction.id}`);
+        webhookApprovals.delete(String(transaction.id));
         break;
       case 'transaction.canceled':
         console.log(`Transaction annulée: ${transaction.id}`);
+        webhookApprovals.delete(String(transaction.id));
         break;
       default:
         console.log(`Événement non géré: ${type}`);
@@ -188,6 +223,19 @@ app.post('/fedapay-webhook', (req, res) => {
   }
 
   res.status(200).json({ received: true });
+});
+
+app.get('/transaction-status/:id', async (req, res) => {
+  const id = req.params.id;
+  const webhookApproved = webhookApprovals.has(id);
+  try {
+    const result = await getFedaPayTransaction(id);
+    const transaction = result?.v1?.transaction;
+    const status = transaction?.status || (webhookApproved ? 'approved' : 'unknown');
+    return res.json({ success: true, status, webhook_approved: webhookApproved });
+  } catch {
+    return res.json({ success: true, status: webhookApproved ? 'approved' : 'pending', webhook_approved: webhookApproved });
+  }
 });
 
 app.listen(PORT, () => {

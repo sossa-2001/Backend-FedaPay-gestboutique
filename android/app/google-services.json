@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "894178811367",
+    "project_id": "jo-gest-boutique",
+    "storage_bucket": "jo-gest-boutique.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:894178811367:android:9c000057ace5f8d6177142",
+        "android_client_info": {
+          "package_name": "com.example.gestbouti"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwelXBCUlym0yb6k3V6WB7DH_yLYbmnfw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
