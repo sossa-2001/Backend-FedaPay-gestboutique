@@ -330,13 +330,15 @@ class _PaymentCheckDialogState extends State<_PaymentCheckDialog> {
     });
 
     if (_status == 'approved' && !_checking) {
+      widget.prov._pendingTransactionId = null;
       await widget.prov.activateSubscription(
         widget.planType,
         extraSecretaries: widget.extraSecretaries,
         isAnnual: widget.isAnnual,
       );
       if (mounted) {
-        Navigator.pop(context);
+        Navigator.of(context, rootNavigator: true)
+            .popUntil((route) => route.isFirst);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Abonnement activé avec succès !'),

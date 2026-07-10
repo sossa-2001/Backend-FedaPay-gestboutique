@@ -6,10 +6,11 @@ const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10kb' }));
 
-// Raw body for webhook signature verification
+// Raw body for webhook signature verification (must be BEFORE express.json)
 app.use('/fedapay-webhook', express.raw({ type: '*/*', limit: '10kb' }));
+
+app.use(express.json({ limit: '10kb' }));
 
 const PORT = process.env.PORT || 3000;
 const FEDAPAY_SECRET_KEY = process.env.FEDAPAY_SECRET_KEY;
@@ -181,9 +182,7 @@ app.get('/payment-redirect', (req, res) => {
 .card{background:#fff;padding:40px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:400px}
 .icon{font-size:64px;margin-bottom:16px}
 h1{margin:0 0 8px;font-size:22px;color:#1a1a2e}
-p{margin:0 0 24px;color:#6b7280;font-size:14px}
-.btn{display:inline-block;padding:12px 32px;background:#1a73e8;color:#fff;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px}
-.btn:hover{background:#1557b0}</style></head><body>
+p{margin:0 0 24px;color:#6b7280;font-size:14px}</style></head><body>
 <div class="card"><div class="icon">${icon}</div>
 <h1>Paiement ${result}</h1>
 <p>Transaction #${id || 'N/A'}<br>Vous pouvez fermer cette page et revenir à l'application.</p>

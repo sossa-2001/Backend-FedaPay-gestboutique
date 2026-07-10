@@ -354,7 +354,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           _detailRow('Expiration', sub.formattedExpiry),
           _detailRow('Dernier paiement', sub.formattedLastPayment),
           _detailRow('Facturation', sub.isAnnual ? 'Annuelle' : 'Mensuelle'),
-            _detailRow('Frais', sub.formattedFee + sub.billingLabel),
+          _detailRow('Frais', sub.formattedFee + sub.billingLabel),
             if (sub.extraSecretariesCount > 0 && SubscriptionPlan.fromType(sub.planType).extraSecretaryFee > 0)
               _detailRow('Paires sup.',
                   '${sub.extraSecretariesCount} (+${(sub.extraSecretariesCount * SubscriptionPlan.fromType(sub.planType).extraSecretaryFee).toStringAsFixed(0)} FCFA)'),
