@@ -38,7 +38,7 @@ class SubscriptionProvider extends ChangeNotifier {
     _initialized = true;
     notifyListeners();
     _startExpiryTimer();
-    _checkPendingTransaction();
+    checkPendingTransaction();
   }
 
   void _startExpiryTimer() {
@@ -237,7 +237,7 @@ class SubscriptionProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _checkPendingTransaction() async {
+  Future<void> checkPendingTransaction() async {
     final txnId = _pendingTransactionId;
     if (txnId == null) return;
     final status = await FedaPayService.checkPaymentStatus(txnId);
