@@ -64,7 +64,9 @@ class _AppBootstrapState extends State<_AppBootstrap> {
       final reportProvider = ReportProvider(orderProvider, db, syncService);
       final settingsProvider = SettingsProvider(db, syncService);
       final syncProvider = SyncProvider(syncService, authProvider);
-      final subscriptionProvider = SubscriptionProvider(db);
+      final subscriptionProvider = SubscriptionProvider(
+        db, firestore, authProvider.currentUserId,
+      );
       await subscriptionProvider.init();
 
       await categoryProvider.loadCategories();

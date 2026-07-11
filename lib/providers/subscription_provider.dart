@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/database_service.dart';
 import '../models/subscription_plan.dart';
 import '../services/fedapay_service.dart';
 
 class SubscriptionProvider extends ChangeNotifier {
   final DatabaseService _db;
+  final FirebaseFirestore _firestore;
+  String? _userId;
   Subscription _subscription;
   bool _isLoading = false;
   bool _initialized = false;
@@ -17,28 +20,63 @@ class SubscriptionProvider extends ChangeNotifier {
 
   static const String _storageKey = 'subscription_data';
 
-  SubscriptionProvider(this._db) : _subscription = Subscription();
+  SubscriptionProvider(this._db, this._firestore, [this._userId])
+      : _subscription = Subscription();
+
+  void setUserId(String? userId) {
+    if (_userId == userId) return;
+    _userId = userId;
+    if (userId != null) {
+      _initialized = false;
+      init();
+    }
+  }
 
   Future<void> init() async {
     if (_initialized) return;
-    final raw = await _db.getSetting(_storageKey);
-    if (raw != null && raw.isNotEmpty) {
-      try {
-        _subscription = Subscription.fromJson(_parsePipeString(raw));
-      } catch (_) {}
+
+    if (_userId != null) {
+      await _loadFromFirestore();
     }
+
+    if (_subscription.startDate == null) {
+      final raw = await _db.getSetting(_storageKey);
+      if (raw != null && raw.isNotEmpty) {
+        try {
+          _subscription = Subscription.fromJson(_parsePipeString(raw));
+        } catch (_) {}
+      }
+    }
+
     if (_subscription.startDate == null) {
       _subscription.isActive = true;
       _subscription.startDate = DateTime.now();
-      _subscription.expiryDate = DateTime.now().add(const Duration(minutes: 3));
+      _subscription.expiryDate = DateTime.now().add(const Duration(days: 30));
       _subscription.lastPaymentDate = DateTime.now();
-      _subscription.planType = PlanType.soloProMulti;
+      _subscription.planType = PlanType.soloStandard;
+      await _persist();
+    } else {
       await _persist();
     }
+
     _initialized = true;
     notifyListeners();
     _startExpiryTimer();
     checkPendingTransaction();
+  }
+
+  Future<void> _loadFromFirestore() async {
+    try {
+      final doc = await _firestore
+          .collection('stores')
+          .doc(_userId)
+          .collection('settings')
+          .doc('subscription')
+          .get();
+      if (doc.exists && doc.data() != null) {
+        _subscription = Subscription.fromJson(doc.data()!);
+      }
+    } catch (_) {}
   }
 
   void _startExpiryTimer() {
@@ -79,6 +117,16 @@ class SubscriptionProvider extends ChangeNotifier {
         .map((e) => '${e.key}:${e.value}')
         .join('|');
     await _db.setSetting(_storageKey, raw);
+    if (_userId != null) {
+      try {
+        await _firestore
+            .collection('stores')
+            .doc(_userId)
+            .collection('settings')
+            .doc('subscription')
+            .set(json);
+      } catch (_) {}
+    }
   }
 
   Future<bool> activateSubscription(PlanType planType,
@@ -94,7 +142,8 @@ class SubscriptionProvider extends ChangeNotifier {
     final base = _subscription.expiryDate != null && !_subscription.isExpired
         ? _subscription.expiryDate!
         : now;
-    _subscription.expiryDate = base.add(const Duration(minutes: 3));
+    _subscription.expiryDate =
+        base.add(isAnnual ? const Duration(days: 365) : const Duration(days: 30));
     _subscription.lastPaymentDate = now;
     _subscription.extraSecretariesCount = extraSecretaries;
     await _persist();
@@ -109,10 +158,11 @@ class SubscriptionProvider extends ChangeNotifier {
     notifyListeners();
 
     if (_subscription.isActive && !_subscription.isExpired) {
-      _subscription.expiryDate =
-          _subscription.expiryDate!.add(const Duration(minutes: 3));
+      _subscription.expiryDate = _subscription.expiryDate!
+          .add(_subscription.isAnnual ? const Duration(days: 365) : const Duration(days: 30));
     } else {
-      _subscription.expiryDate = DateTime.now().add(const Duration(minutes: 3));
+      _subscription.expiryDate = DateTime.now()
+          .add(_subscription.isAnnual ? const Duration(days: 365) : const Duration(days: 30));
     }
     _subscription.isActive = true;
     _subscription.lastPaymentDate = DateTime.now();

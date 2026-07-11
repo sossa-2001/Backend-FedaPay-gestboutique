@@ -26,19 +26,40 @@ class GestBoutiqueApp extends StatelessWidget {
       themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
       home: _AppLifecycleWrapper(
         child: auth.status == AuthStatus.authenticated
-            ? Consumer<SubscriptionProvider>(
-                builder: (ctx, subProv, _) {
-                  if (!subProv.initialized) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  return subProv.isActive
-                      ? const HomeScreen()
-                      : ForceSubscriptionScreen(key: UniqueKey());
-                },
-              )
+            ? _AuthenticatedArea()
             : const LoginScreen(),
       ),
       routes: {'/home': (context) => const HomeScreen()},
+    );
+  }
+}
+
+class _AuthenticatedArea extends StatefulWidget {
+  @override
+  State<_AuthenticatedArea> createState() => _AuthenticatedAreaState();
+}
+
+class _AuthenticatedAreaState extends State<_AuthenticatedArea> {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final userId = context.read<AuthProvider>().currentUserId;
+    if (userId != null) {
+      context.read<SubscriptionProvider>().setUserId(userId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<SubscriptionProvider>(
+      builder: (ctx, subProv, _) {
+        if (!subProv.initialized) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return subProv.isActive
+            ? const HomeScreen()
+            : ForceSubscriptionScreen(key: UniqueKey());
+      },
     );
   }
 }

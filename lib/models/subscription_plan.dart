@@ -38,7 +38,7 @@ class SubscriptionPlan {
       type: PlanType.soloStandard,
       name: 'Solo Standard',
       description: 'Gestion des produits, stocks, clients et rapports',
-      monthlyFee: 100,
+      monthlyFee: 15000,
       features: [
         'Gestion des produits',
         'Gestion des catégories',
@@ -51,7 +51,7 @@ class SubscriptionPlan {
       type: PlanType.soloPro,
       name: 'Solo Pro',
       description: 'Gestion + facturation et point de vente',
-      monthlyFee: 100,
+      monthlyFee: 30000,
       features: [
         'Tout du plan Solo Standard',
         'Point de vente (POS)',
@@ -65,7 +65,7 @@ class SubscriptionPlan {
       type: PlanType.soloProDb,
       name: 'Solo Pro + DB',
       description: 'Base de données en ligne + secrétaire + surveillance',
-      monthlyFee: 100,
+      monthlyFee: 45000,
       features: [
         'Tout du plan Solo Pro',
         'Accès base de données en ligne',
@@ -78,7 +78,7 @@ class SubscriptionPlan {
       type: PlanType.soloProMulti,
       name: 'Solo Pro + DB Multi',
       description: 'Multi-secrétaire + multi-surveillance',
-      monthlyFee: 100,
+      monthlyFee: 60000,
       features: [
         'Tout du plan Solo Pro + DB',
         'Multi-secrétaires',
@@ -132,7 +132,7 @@ class Subscription {
 
   bool get isExpiringSoon =>
       expiryDate != null &&
-      expiryDate!.difference(DateTime.now()).inMinutes <= 1 &&
+      expiryDate!.difference(DateTime.now()).inDays <= 7 &&
       !isExpired;
 
   int get daysRemaining =>
