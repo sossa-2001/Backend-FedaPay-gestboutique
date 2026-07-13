@@ -7,14 +7,30 @@ import '../../providers/product_provider.dart';
 import '../../providers/pos_provider.dart';
 import '../../providers/client_provider.dart';
 import '../../providers/order_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../models/product.dart';
 import '../../models/order.dart';
 import '../../utils/responsive.dart';
 import '../../utils/print_utils.dart';
 
-class PosScreen extends StatelessWidget {
+class PosScreen extends StatefulWidget {
   const PosScreen({super.key});
+
+  @override
+  State<PosScreen> createState() => _PosScreenState();
+}
+
+class _PosScreenState extends State<PosScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<ProductProvider>().setSearchQuery('');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -303,6 +319,9 @@ class PosScreen extends StatelessWidget {
                     itemCount: posProvider.cart.length,
                     itemBuilder: (context, index) {
                       final item = posProvider.cart[index];
+                      final autoDisc = item.autoDiscountPerUnit;
+                      final hasAutoDisc = autoDisc > 0;
+                      final maxManual = item.product.manualDiscountMax;
                       return Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: EdgeInsets.all(context.isMobile ? 8 : 12),
@@ -343,77 +362,107 @@ class PosScreen extends StatelessWidget {
                             SizedBox(height: context.isMobile ? 4 : 8),
                             Row(
                               children: [
-                                Text(
-                                  NumberFormat.currency(
-                                    locale: 'fr',
-                                    symbol: 'FCFA',
-                                    decimalDigits: 0,
-                                  ).format(item.product.price),
-                                  style: TextStyle(
-                                    fontSize: context.fontSizeSm,
-                                    color: onSurfaceDim,
+                                if (hasAutoDisc)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        NumberFormat.currency(locale: 'fr', symbol: 'FCFA', decimalDigits: 0).format(item.product.price),
+                                        style: TextStyle(
+                                          fontSize: context.fontSizeSm,
+                                          color: onSurfaceDim,
+                                          decoration: TextDecoration.lineThrough,
+                                        ),
+                                      ),
+                                      Text(
+                                        NumberFormat.currency(locale: 'fr', symbol: 'FCFA', decimalDigits: 0).format(item.unitPriceWithAutoDiscount),
+                                        style: TextStyle(
+                                          fontSize: context.fontSizeSm,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.success,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                else
+                                  Text(
+                                    NumberFormat.currency(locale: 'fr', symbol: 'FCFA', decimalDigits: 0).format(item.product.price),
+                                    style: TextStyle(
+                                      fontSize: context.fontSizeSm,
+                                      color: onSurfaceDim,
+                                    ),
                                   ),
-                                ),
                                 const Spacer(),
                                 Row(
                                   children: [
                                     InkWell(
-                                      onTap: () => posProvider.updateQuantity(
-                                        index,
-                                        item.quantity - 1,
-                                      ),
+                                      onTap: () => posProvider.updateQuantity(index, item.quantity - 1),
                                       child: Container(
                                         padding: const EdgeInsets.all(4),
                                         decoration: BoxDecoration(
                                           color: theme.dividerColor,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
+                                          borderRadius: BorderRadius.circular(4),
                                         ),
-                                        child: Icon(
-                                          Icons.remove_rounded,
-                                          size: context.iconSm,
-                                          color: onSurface,
-                                        ),
+                                        child: Icon(Icons.remove_rounded, size: context.iconSm, color: onSurface),
                                       ),
                                     ),
                                     Padding(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: context.isMobile ? 8 : 12,
-                                      ),
-                                      child: Text(
-                                        '${item.quantity}',
-                                        style: TextStyle(
-                                          fontSize: context.fontSizeMd,
-                                          fontWeight: FontWeight.w600,
-                                          color: onSurface,
-                                        ),
-                                      ),
+                                      padding: EdgeInsets.symmetric(horizontal: context.isMobile ? 8 : 12),
+                                      child: Text('${item.quantity}', style: TextStyle(fontSize: context.fontSizeMd, fontWeight: FontWeight.w600, color: onSurface)),
                                     ),
                                     InkWell(
-                                      onTap: () => posProvider.updateQuantity(
-                                        index,
-                                        item.quantity + 1,
-                                      ),
+                                      onTap: () => posProvider.updateQuantity(index, item.quantity + 1),
                                       child: Container(
                                         padding: const EdgeInsets.all(4),
                                         decoration: BoxDecoration(
                                           color: AppColors.primary,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
+                                          borderRadius: BorderRadius.circular(4),
                                         ),
-                                        child: Icon(
-                                          Icons.add_rounded,
-                                          size: context.iconSm,
-                                          color: Colors.white,
-                                        ),
+                                        child: Icon(Icons.add_rounded, size: context.iconSm, color: Colors.white),
                                       ),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
+                            if (hasAutoDisc)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  'Auto: -${NumberFormat.currency(locale: 'fr', symbol: '', decimalDigits: 0).format(autoDisc)}/u',
+                                  style: TextStyle(fontSize: 10, color: AppColors.success),
+                                ),
+                              ),
+                            if (maxManual != null && maxManual > 0)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Row(
+                                  children: [
+                                    Text('Remise:', style: TextStyle(fontSize: 10, color: onSurfaceDim)),
+                                    const SizedBox(width: 4),
+                                    SizedBox(
+                                      width: 70,
+                                      height: 28,
+                                      child: TextField(
+                                        keyboardType: TextInputType.number,
+                                        style: TextStyle(fontSize: 11, color: onSurface),
+                                        decoration: InputDecoration(
+                                          isDense: true,
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(4), borderSide: BorderSide(color: theme.dividerColor)),
+                                          hintText: '0',
+                                        ),
+                                        onChanged: (v) {
+                                          final val = double.tryParse(v);
+                                          if (val != null) posProvider.setManualDiscount(index, val);
+                                        },
+                                      ),
+                                    ),
+                                    Text(' max ${NumberFormat.currency(locale: 'fr', symbol: '', decimalDigits: 0).format(maxManual)}',
+                                        style: TextStyle(fontSize: 10, color: onSurfaceDim)),
+                                  ],
+                                ),
+                              ),
                           ],
                         ),
                       );
@@ -427,6 +476,47 @@ class PosScreen extends StatelessWidget {
             ),
             child: Column(
               children: [
+                if (posProvider.totalDiscount > 0) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Sous-total', style: TextStyle(fontSize: context.fontSizeSm, color: onSurfaceDim)),
+                      Text(
+                        NumberFormat.currency(locale: 'fr', symbol: 'FCFA', decimalDigits: 0).format(posProvider.subtotal + posProvider.totalDiscount),
+                        style: TextStyle(fontSize: context.fontSizeSm, color: onSurfaceDim),
+                      ),
+                    ],
+                  ),
+                  if (posProvider.totalAutoDiscount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Remise auto', style: TextStyle(fontSize: context.fontSizeSm, color: AppColors.success)),
+                          Text(
+                            '-${NumberFormat.currency(locale: 'fr', symbol: 'FCFA', decimalDigits: 0).format(posProvider.totalAutoDiscount)}',
+                            style: TextStyle(fontSize: context.fontSizeSm, color: AppColors.success),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (posProvider.totalManualDiscount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Remise manuelle', style: TextStyle(fontSize: context.fontSizeSm, color: AppColors.warning)),
+                          Text(
+                            '-${NumberFormat.currency(locale: 'fr', symbol: 'FCFA', decimalDigits: 0).format(posProvider.totalManualDiscount)}',
+                            style: TextStyle(fontSize: context.fontSizeSm, color: AppColors.warning),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const Divider(height: 12),
+                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -489,8 +579,9 @@ class PosScreen extends StatelessWidget {
   void _showPostSaleDialog(
     BuildContext context,
     Order order,
-    String companyName,
-  ) {
+    String companyName, {
+    String? logoBase64,
+  }) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -536,13 +627,13 @@ class PosScreen extends StatelessWidget {
             child: const Text('Fermer'),
           ),
           OutlinedButton.icon(
-            onPressed: () => printDeliveryNote(order, companyName),
+              onPressed: () => printDeliveryNote(order, companyName, logoBase64: logoBase64),
             icon: Icon(Icons.receipt_long_rounded, size: context.iconSm),
             label: const Text('Bon de livraison'),
           ),
           const SizedBox(width: 8),
           ElevatedButton.icon(
-            onPressed: () => printInvoice(order, companyName),
+            onPressed: () => printInvoice(order, companyName, logoBase64: logoBase64),
             icon: Icon(Icons.description_rounded, size: context.iconSm),
             label: const Text('Facture'),
           ),
@@ -553,7 +644,11 @@ class PosScreen extends StatelessWidget {
 
   void _checkout(BuildContext context) {
     final clientProvider = context.read<ClientProvider>();
+    final total = context.read<PosProvider>().subtotal;
     String? selectedName;
+    int? selectedId;
+    PaymentStatus payStatus = PaymentStatus.paid;
+    final amountCtrl = TextEditingController(text: total.toStringAsFixed(0));
 
     showDialog(
       context: context,
@@ -563,45 +658,73 @@ class PosScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
           ),
           title: const Text('Confirmer la vente'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Client (optionnel) :',
-                style: TextStyle(
-                  fontSize: context.fontSizeMd,
-                  color: Theme.of(
-                    ctx,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String?>(
-                value: selectedName,
-                decoration: const InputDecoration(
-                  hintText: 'Sélectionner un client',
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Client (optionnel) :',
+                  style: TextStyle(
+                    fontSize: context.fontSizeMd,
+                    color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.6),
                   ),
                 ),
-                isExpanded: true,
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('Aucun')),
-                  ...clientProvider.clients.map(
-                    (c) => DropdownMenuItem(
-                      value: c.name,
-                      child: Text(c.name, overflow: TextOverflow.ellipsis),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String?>(
+                  value: selectedName,
+                  decoration: const InputDecoration(
+                    hintText: 'Sélectionner un client',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  isExpanded: true,
+                  items: [
+                    const DropdownMenuItem(value: null, child: Text('Aucun')),
+                    ...clientProvider.clients.map(
+                      (c) => DropdownMenuItem(
+                        value: c.name,
+                        child: Text(c.name, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                  ],
+                  onChanged: (v) {
+                    setDialogState(() {
+                      selectedName = v;
+                      selectedId = v != null
+                          ? clientProvider.clients.firstWhere((c) => c.name == v).id
+                          : null;
+                    });
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Mode de paiement :',
+                  style: TextStyle(
+                    fontSize: context.fontSizeMd,
+                    color: Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _paymentRadio(ctx, 'Payé intégralement', PaymentStatus.paid, payStatus, (s) { setDialogState(() { payStatus = s; amountCtrl.text = total.toStringAsFixed(0); }); }),
+                _paymentRadio(ctx, 'Paiement partiel', PaymentStatus.partial, payStatus, (s) { setDialogState(() { payStatus = s; }); }),
+                _paymentRadio(ctx, 'Non payé (dette)', PaymentStatus.unpaid, payStatus, (s) { setDialogState(() { payStatus = s; amountCtrl.text = '0'; }); }),
+                _paymentRadio(ctx, 'Avance / Dépôt', PaymentStatus.deposit, payStatus, (s) { setDialogState(() { payStatus = s; amountCtrl.text = total.toStringAsFixed(0); }); }),
+                if (payStatus == PaymentStatus.partial || payStatus == PaymentStatus.deposit) ...[
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: amountCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: payStatus == PaymentStatus.deposit ? 'Montant déposé' : 'Montant payé',
+                      prefixText: 'FCFA ',
+                      border: const OutlineInputBorder(),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     ),
                   ),
                 ],
-                onChanged: (v) => setDialogState(() => selectedName = v),
-              ),
-              const SizedBox(height: 16),
-              const Text('Valider cette transaction ?'),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -610,8 +733,21 @@ class PosScreen extends StatelessWidget {
             ),
             ElevatedButton(
               onPressed: () async {
-                await ctx.read<PosProvider>().checkout(
+                final auth = ctx.read<AuthProvider>();
+                final pos = ctx.read<PosProvider>();
+                double paid = total;
+                if (payStatus == PaymentStatus.partial || payStatus == PaymentStatus.deposit) {
+                  paid = double.tryParse(amountCtrl.text) ?? 0;
+                } else if (payStatus == PaymentStatus.unpaid) {
+                  paid = 0;
+                }
+                await pos.checkout(
                   customerName: selectedName,
+                  customerId: selectedId,
+                  sellerName: auth.currentLogin.isNotEmpty ? auth.currentLogin : null,
+                  paymentStatus: payStatus,
+                  amountPaid: paid,
+                  clientProvider: selectedId != null ? clientProvider : null,
                 );
                 if (ctx.mounted) Navigator.pop(ctx);
                 if (context.mounted) {
@@ -625,6 +761,7 @@ class PosScreen extends StatelessWidget {
                       context,
                       lastOrder,
                       settings.companyName,
+                      logoBase64: settings.logoBase64,
                     );
                   }
                 }
@@ -632,6 +769,44 @@ class PosScreen extends StatelessWidget {
               child: const Text('Confirmer'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _paymentRadio(
+    BuildContext ctx,
+    String label,
+    PaymentStatus thisStatus,
+    PaymentStatus currentStatus,
+    void Function(PaymentStatus) onSelect,
+  ) {
+    final selected = thisStatus == currentStatus;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: InkWell(
+        onTap: () => onSelect(thisStatus),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary.withValues(alpha: 0.1) : null,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected ? AppColors.primary : Theme.of(ctx).dividerColor.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.radio_button_checked_rounded : Icons.radio_button_unchecked_rounded,
+                size: 18,
+                color: selected ? AppColors.primary : Theme.of(ctx).colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+              const SizedBox(width: 10),
+              Text(label, style: TextStyle(fontSize: context.fontSizeMd)),
+            ],
+          ),
         ),
       ),
     );

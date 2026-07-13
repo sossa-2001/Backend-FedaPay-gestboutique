@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../../theme/app_colors.dart';
@@ -81,38 +82,38 @@ class ClientsScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    client.name,
-                                    style: TextStyle(
-                                      fontSize: context.fontSizeMd,
-                                      fontWeight: FontWeight.w500,
-                                      color: onSurface,
-                                    ),
-                                  ),
-                                  if (client.phone != null)
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
                                     Text(
-                                      client.phone!,
+                                      client.name,
                                       style: TextStyle(
-                                        fontSize: context.fontSizeSm,
-                                        color: onSurfaceDim,
+                                        fontSize: context.fontSizeMd,
+                                        fontWeight: FontWeight.w500,
+                                        color: onSurface,
                                       ),
                                     ),
-                                ],
-                              ),
-                            ),
-                            if (client.email != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Text(
-                                  client.email!,
-                                  style: TextStyle(
-                                    fontSize: context.fontSizeSm,
-                                    color: onSurfaceDim,
-                                  ),
+                                    if (client.phone != null)
+                                      Text(
+                                        client.phone!,
+                                        style: TextStyle(
+                                          fontSize: context.fontSizeSm,
+                                          color: onSurfaceDim,
+                                        ),
+                                      ),
+                                    if (client.balance != 0)
+                                      Text(
+                                        client.hasDebt
+                                            ? 'Dette: ${NumberFormat.currency(locale: 'fr', symbol: 'FCFA ', decimalDigits: 0).format(client.balance)}'
+                                            : 'Avance: ${NumberFormat.currency(locale: 'fr', symbol: 'FCFA ', decimalDigits: 0).format(-client.balance)}',
+                                        style: TextStyle(
+                                          fontSize: context.fontSizeSm,
+                                          color: client.hasDebt ? AppColors.error : AppColors.success,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                  ],
                                 ),
                               ),
                             PopupMenuButton(
@@ -122,6 +123,17 @@ class ClientsScreen extends StatelessWidget {
                                 color: onSurfaceDim,
                               ),
                               itemBuilder: (context) => [
+                                if (client.hasDebt)
+                                  const PopupMenuItem(
+                                    value: 'pay',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.payment_rounded, size: 18, color: AppColors.success),
+                                        SizedBox(width: 8),
+                                        Text('Payer la dette', style: TextStyle(color: AppColors.success)),
+                                      ],
+                                    ),
+                                  ),
                                 const PopupMenuItem(
                                   value: 'history',
                                   child: Text('Historique'),
@@ -136,6 +148,8 @@ class ClientsScreen extends StatelessWidget {
                                 ),
                               ],
                               onSelected: (v) {
+                                if (v == 'pay')
+                                  _showPayDebt(context, client);
                                 if (v == 'history')
                                   _showHistory(context, client);
                                 if (v == 'edit')
@@ -323,37 +337,62 @@ class ClientsScreen extends StatelessWidget {
                     ...orders.map(
                       (o) => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${dateFmt.format(o.createdAt!)} à ${timeFmt.format(o.createdAt!)}',
-                                    style: TextStyle(
-                                      fontSize: context.fontSizeSm,
-                                      color: onSurfaceDim,
-                                    ),
-                                  ),
-                                  if (o.orderNumber.isNotEmpty)
-                                    Text(
-                                      o.orderNumber,
-                                      style: TextStyle(
-                                        fontSize: context.fontSizeSm,
-                                        color: onSurfaceDim,
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${dateFmt.format(o.createdAt ?? DateTime.now())} à ${timeFmt.format(o.createdAt ?? DateTime.now())}',
+                                        style: TextStyle(
+                                          fontSize: context.fontSizeSm,
+                                          color: onSurfaceDim,
+                                        ),
                                       ),
-                                    ),
-                                ],
-                              ),
+                                      if (o.orderNumber.isNotEmpty)
+                                        Text(
+                                          o.orderNumber,
+                                          style: TextStyle(
+                                            fontSize: context.fontSizeSm,
+                                            color: onSurfaceDim,
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  currencyFmt.format(o.total),
+                                  style: TextStyle(
+                                    fontSize: context.fontSizeMd,
+                                    fontWeight: FontWeight.w600,
+                                    color: onSurface,
+                                  ),
+                                ),
+                              ],
                             ),
-                            Text(
-                              currencyFmt.format(o.total),
-                              style: TextStyle(
-                                fontSize: context.fontSizeMd,
-                                fontWeight: FontWeight.w600,
-                                color: onSurface,
-                              ),
+                            Row(
+                              children: [
+                                Text(
+                                  _paymentLabel(o.paymentStatus),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: o.paymentStatus == PaymentStatus.paid
+                                        ? AppColors.success
+                                        : o.paymentStatus == PaymentStatus.unpaid
+                                            ? AppColors.error
+                                            : AppColors.warning,
+                                  ),
+                                ),
+                                if (o.amountPaid > 0 && !o.isFullyPaid)
+                                  Text(
+                                    ' — Payé: ${currencyFmt.format(o.amountPaid)}',
+                                    style: const TextStyle(fontSize: 10, color: AppColors.warning),
+                                  ),
+                              ],
                             ),
                           ],
                         ),
@@ -381,10 +420,45 @@ class ClientsScreen extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (client.balance != 0)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              client.hasDebt ? 'Solde dû' : 'Avance',
+                              style: TextStyle(
+                                fontSize: context.fontSizeMd,
+                                fontWeight: FontWeight.bold,
+                                color: onSurface,
+                              ),
+                            ),
+                            Text(
+                              currencyFmt.format(client.balance.abs()),
+                              style: TextStyle(
+                                fontSize: context.fontSizeLg,
+                                fontWeight: FontWeight.bold,
+                                color: client.hasDebt ? AppColors.error : AppColors.success,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                   ],
                 ),
         ),
         actions: [
+          if (client.hasDebt)
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showPayDebt(context, client);
+              },
+              icon: const Icon(Icons.payment_rounded, size: 16),
+              label: const Text('Payer'),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+            ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Fermer'),
@@ -392,5 +466,133 @@ class ClientsScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  void _showPayDebt(BuildContext context, Client client) {
+    final theme = Theme.of(context);
+    final onSurface = theme.colorScheme.onSurface;
+    final onSurfaceDim = onSurface.withValues(alpha: 0.6);
+    final currencyFmt = NumberFormat.currency(
+      locale: 'fr',
+      symbol: 'FCFA ',
+      decimalDigits: 0,
+    );
+    final amountCtrl = TextEditingController(text: client.balance.toStringAsFixed(0));
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Payer la dette'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Client: ${client.name}', style: TextStyle(fontSize: 13, color: onSurfaceDim)),
+              const SizedBox(height: 4),
+              Text(
+                'Dette totale: ${currencyFmt.format(client.balance)}',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.error),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  labelText: 'Montant à payer',
+                  prefixText: 'FCFA ',
+                  border: const OutlineInputBorder(),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.all_inclusive, size: 18),
+                    tooltip: 'Tout payer',
+                    onPressed: () {
+                      amountCtrl.text = client.balance.toStringAsFixed(0);
+                      setDialogState(() {});
+                    },
+                  ),
+                ),
+                onChanged: (_) => setDialogState(() {}),
+              ),
+              const SizedBox(height: 8),
+              Builder(
+                builder: (_) {
+                  final entered = amountCtrl.text.trim().isEmpty ? 0.0 : (int.tryParse(amountCtrl.text.trim()) ?? 0).toDouble();
+                  final clamped = entered.clamp(0, client.balance).toDouble();
+                  final remaining = client.balance - clamped;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('À payer: ${currencyFmt.format(clamped)}', style: TextStyle(fontSize: 12, color: AppColors.success)),
+                      if (remaining > 0)
+                        Text('Reste après paiement: ${currencyFmt.format(remaining)}', style: TextStyle(fontSize: 12, color: AppColors.error)),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  final text = amountCtrl.text.trim();
+                  final payAmount = text.isEmpty ? 0.0 : (int.tryParse(text) ?? 0).toDouble();
+                  if (payAmount <= 0) return;
+                  final payClamped = payAmount.clamp(0.0, client.balance);
+                  Navigator.pop(ctx);
+
+                  final orderProv = context.read<OrderProvider>();
+                  final clientProv = context.read<ClientProvider>();
+
+                  final unpaidOrders = orderProv.orders
+                      .where((o) =>
+                          o.customerId == client.id &&
+                          o.status == OrderStatus.completed &&
+                          o.amountDue > 0)
+                      .toList()
+                    ..sort((a, b) => (a.createdAt ?? DateTime(0)).compareTo(b.createdAt ?? DateTime(0)));
+
+                  double remaining = payClamped;
+                  for (final order in unpaidOrders) {
+                    if (remaining <= 0) break;
+                    final due = order.amountDue;
+                    final payForOrder = remaining >= due ? due : remaining;
+                    final newPaid = order.amountPaid + payForOrder;
+                    final newStatus = newPaid >= order.total ? PaymentStatus.paid : PaymentStatus.partial;
+                    await orderProv.updatePayment(order, newStatus, newPaid, clientProvider: clientProv);
+                    remaining -= payForOrder;
+                  }
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text('Erreur: $e'), backgroundColor: AppColors.error),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _paymentLabel(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.paid:
+        return 'Payé';
+      case PaymentStatus.partial:
+        return 'Paiement partiel';
+      case PaymentStatus.unpaid:
+        return 'Non payé';
+      case PaymentStatus.deposit:
+        return 'Avance/Dépôt';
+    }
   }
 }

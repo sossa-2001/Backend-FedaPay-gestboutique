@@ -5,8 +5,10 @@ class Category {
   int? color;
   int? icon;
   DateTime? createdAt;
+  DateTime? updatedAt;
 
   Category() {
     createdAt = DateTime.now();
+    updatedAt = DateTime.now();
   }
 }

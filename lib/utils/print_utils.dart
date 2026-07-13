@@ -1,10 +1,16 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import '../models/order.dart';
 
-Future<void> printInvoice(Order order, String companyName) async {
+Future<void> printInvoice(
+  Order order,
+  String companyName, {
+  String? logoBase64,
+}) async {
   final currencyFmt = NumberFormat.currency(
     locale: 'fr',
     symbol: 'FCFA',
@@ -13,6 +19,14 @@ Future<void> printInvoice(Order order, String companyName) async {
   final dateFmt = DateFormat('dd/MM/yyyy');
   final timeFmt = DateFormat('HH:mm');
   final doc = pw.Document();
+
+  pw.ImageProvider? logoImage;
+  if (logoBase64 != null && logoBase64.isNotEmpty) {
+    try {
+      final bytes = base64Decode(logoBase64);
+      logoImage = pw.MemoryImage(Uint8List.fromList(bytes));
+    } catch (_) {}
+  }
 
   doc.addPage(
     pw.MultiPage(
@@ -24,19 +38,30 @@ Future<void> printInvoice(Order order, String companyName) async {
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
+              pw.Row(
                 children: [
-                  pw.Text(
-                    companyName,
-                    style: pw.TextStyle(
-                      fontSize: 20,
-                      fontWeight: pw.FontWeight.bold,
+                  if (logoImage != null)
+                    pw.Container(
+                      width: 40,
+                      height: 40,
+                      margin: const pw.EdgeInsets.only(right: 10),
+                      child: pw.Image(logoImage, fit: pw.BoxFit.contain),
                     ),
-                  ),
-                  pw.Text(
-                    'Facture',
-                    style: pw.TextStyle(fontSize: 14, color: PdfColors.grey),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        companyName,
+                        style: pw.TextStyle(
+                          fontSize: 20,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.Text(
+                        'Facture',
+                        style: pw.TextStyle(fontSize: 14, color: PdfColors.grey),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -63,7 +88,8 @@ Future<void> printInvoice(Order order, String companyName) async {
           ),
         ),
         pw.SizedBox(height: 20),
-        if (order.customerName != null && order.customerName!.isNotEmpty)
+        if (order.customerName != null && order.customerName!.isNotEmpty ||
+            order.sellerName != null && order.sellerName!.isNotEmpty)
           pw.Container(
             padding: const pw.EdgeInsets.all(10),
             decoration: pw.BoxDecoration(
@@ -73,19 +99,37 @@ Future<void> printInvoice(Order order, String companyName) async {
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
-                pw.Text(
-                  'Client',
-                  style: pw.TextStyle(
-                    fontSize: 9,
-                    color: PdfColors.grey,
-                    fontWeight: pw.FontWeight.bold,
+                if (order.customerName != null && order.customerName!.isNotEmpty) ...[
+                  pw.Text(
+                    'Client',
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      color: PdfColors.grey,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
                   ),
-                ),
-                pw.SizedBox(height: 3),
-                pw.Text(
-                  order.customerName!,
-                  style: const pw.TextStyle(fontSize: 11),
-                ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    order.customerName!,
+                    style: const pw.TextStyle(fontSize: 11),
+                  ),
+                  pw.SizedBox(height: 4),
+                ],
+                if (order.sellerName != null && order.sellerName!.isNotEmpty) ...[
+                  pw.Text(
+                    'Vendeur',
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      color: PdfColors.grey,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    order.sellerName!,
+                    style: const pw.TextStyle(fontSize: 11),
+                  ),
+                ],
               ],
             ),
           ),
@@ -221,10 +265,103 @@ Future<void> printInvoice(Order order, String companyName) async {
             ),
           ],
         ),
+        pw.SizedBox(height: 12),
+        pw.Container(
+          padding: const pw.EdgeInsets.all(10),
+          decoration: pw.BoxDecoration(
+            color: PdfColors.grey100,
+            borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+          ),
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.end,
+                children: [
+                  pw.SizedBox(
+                    width: 90,
+                    child: pw.Text('Montant payé', textAlign: pw.TextAlign.right),
+                  ),
+                  pw.SizedBox(
+                    width: 80,
+                    child: pw.Text(
+                      currencyFmt.format(order.amountPaid),
+                      textAlign: pw.TextAlign.right,
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              if (order.amountDue > 0) ...[
+                pw.SizedBox(height: 4),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.end,
+                  children: [
+                    pw.SizedBox(
+                      width: 90,
+                      child: pw.Text(
+                        'Reste à payer',
+                        textAlign: pw.TextAlign.right,
+                        style: pw.TextStyle(color: PdfColors.red),
+                      ),
+                    ),
+                    pw.SizedBox(
+                      width: 80,
+                      child: pw.Text(
+                        currencyFmt.format(order.amountDue),
+                        textAlign: pw.TextAlign.right,
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.red,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
         pw.SizedBox(height: 24),
         pw.Text(
           'Merci de votre confiance !',
           style: pw.TextStyle(fontSize: 9, color: PdfColors.grey),
+        ),
+        pw.SizedBox(height: 30),
+        pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Container(
+                  width: 150,
+                  height: 1,
+                  color: PdfColors.grey400,
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  'Signature du client',
+                  style: pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+                ),
+              ],
+            ),
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Container(
+                  width: 150,
+                  height: 1,
+                  color: PdfColors.grey400,
+                ),
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  'Cachet / Signature',
+                  style: pw.TextStyle(fontSize: 8, color: PdfColors.grey),
+                ),
+              ],
+            ),
+          ],
         ),
       ],
     ),
@@ -235,11 +372,23 @@ Future<void> printInvoice(Order order, String companyName) async {
   );
 }
 
-Future<void> printDeliveryNote(Order order, String companyName) async {
+Future<void> printDeliveryNote(
+  Order order,
+  String companyName, {
+  String? logoBase64,
+}) async {
   final dateFmt = DateFormat('dd/MM/yyyy');
   final timeFmt = DateFormat('HH:mm');
   final doc = pw.Document();
   final totalItems = order.items.fold(0.0, (s, i) => s + i.quantity);
+
+  pw.ImageProvider? logoImage;
+  if (logoBase64 != null && logoBase64.isNotEmpty) {
+    try {
+      final bytes = base64Decode(logoBase64);
+      logoImage = pw.MemoryImage(Uint8List.fromList(bytes));
+    } catch (_) {}
+  }
 
   doc.addPage(
     pw.MultiPage(
@@ -251,19 +400,30 @@ Future<void> printDeliveryNote(Order order, String companyName) async {
           child: pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
+              pw.Row(
                 children: [
-                  pw.Text(
-                    companyName,
-                    style: pw.TextStyle(
-                      fontSize: 20,
-                      fontWeight: pw.FontWeight.bold,
+                  if (logoImage != null)
+                    pw.Container(
+                      width: 40,
+                      height: 40,
+                      margin: const pw.EdgeInsets.only(right: 10),
+                      child: pw.Image(logoImage, fit: pw.BoxFit.contain),
                     ),
-                  ),
-                  pw.Text(
-                    'Bon de livraison',
-                    style: pw.TextStyle(fontSize: 14, color: PdfColors.grey),
+                  pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text(
+                        companyName,
+                        style: pw.TextStyle(
+                          fontSize: 20,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.Text(
+                        'Bon de livraison',
+                        style: pw.TextStyle(fontSize: 14, color: PdfColors.grey),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -297,7 +457,7 @@ Future<void> printDeliveryNote(Order order, String companyName) async {
               color: PdfColors.grey100,
               borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
             ),
-            child: pw.Column(
+              child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
                 pw.Text(
@@ -313,6 +473,22 @@ Future<void> printDeliveryNote(Order order, String companyName) async {
                   order.customerName!,
                   style: const pw.TextStyle(fontSize: 11),
                 ),
+                if (order.sellerName != null && order.sellerName!.isNotEmpty) ...[
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Vendeur',
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      color: PdfColors.grey,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 3),
+                  pw.Text(
+                    order.sellerName!,
+                    style: const pw.TextStyle(fontSize: 11),
+                  ),
+                ],
               ],
             ),
           ),

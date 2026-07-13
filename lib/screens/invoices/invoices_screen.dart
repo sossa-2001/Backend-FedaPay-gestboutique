@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
@@ -6,6 +7,8 @@ import '../../theme/app_colors.dart';
 import '../../widgets/glassmorphism.dart';
 import '../../providers/order_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/client_provider.dart';
+import '../../providers/stock_provider.dart';
 import '../../models/order.dart';
 import '../../utils/responsive.dart';
 import '../../utils/print_utils.dart';
@@ -169,7 +172,7 @@ class InvoicesScreen extends StatelessWidget {
               Icons.receipt_rounded,
               'Facture',
               AppColors.primary,
-              () => _printInvoice(order, companyName),
+              () => _printInvoice(order, companyName, context),
             ),
             const SizedBox(width: 8),
             _actionButton(
@@ -177,7 +180,7 @@ class InvoicesScreen extends StatelessWidget {
               Icons.local_shipping_rounded,
               'Bon',
               AppColors.success,
-              () => _printDeliveryNote(order, companyName),
+              () => _printDeliveryNote(order, companyName, context),
             ),
           ],
         ),
@@ -252,7 +255,7 @@ class InvoicesScreen extends StatelessWidget {
           Icons.receipt_rounded,
           'Facture',
           AppColors.primary,
-          () => _printInvoice(order, companyName),
+          () => _printInvoice(order, companyName, context),
         ),
         const SizedBox(width: 4),
         _actionButton(
@@ -260,7 +263,7 @@ class InvoicesScreen extends StatelessWidget {
           Icons.local_shipping_rounded,
           'Bon',
           AppColors.success,
-          () => _printDeliveryNote(order, companyName),
+          () => _printDeliveryNote(order, companyName, context),
         ),
       ],
     );
@@ -377,7 +380,11 @@ class InvoicesScreen extends StatelessWidget {
                   ],
                 ),
                 const Divider(),
-                _section('Émetteur', [_row(companyName, '', context)], context),
+                _section('Émetteur', [
+                  _row(companyName, '', context),
+                  if (order.sellerName != null)
+                    _row('Vendeur', order.sellerName!, context),
+                ], context),
                 const SizedBox(height: 12),
                 _section('Client', [
                   _row('Nom', order.customerName ?? '—', context),
@@ -395,7 +402,9 @@ class InvoicesScreen extends StatelessWidget {
                     timeFmt.format(order.createdAt ?? DateTime.now()),
                     context,
                   ),
-                  _row('Statut', 'Payée', context),
+                  _row('Statut', _paymentLabel(order.paymentStatus), context),
+                  if (order.amountDue > 0)
+                    _row('Restant dû', currencyFmt.format(order.amountDue), context),
                 ], context),
                 const SizedBox(height: 16),
                 Text(
@@ -496,21 +505,118 @@ class InvoicesScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Montant payé', style: TextStyle(fontSize: context.fontSizeMd, color: onSurfaceDim)),
+                          Text(
+                            currencyFmt.format(order.amountPaid),
+                            style: TextStyle(
+                              fontSize: context.fontSizeMd,
+                              fontWeight: FontWeight.bold,
+                              color: onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (order.amountDue > 0) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Reste à payer', style: TextStyle(fontSize: context.fontSizeMd, color: AppColors.error)),
+                            Text(
+                              currencyFmt.format(order.amountDue),
+                              style: TextStyle(
+                                fontSize: context.fontSizeMd,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 120,
+                          height: 1,
+                          color: onSurfaceDim.withValues(alpha: 0.3),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('Signature client', style: TextStyle(fontSize: context.fontSizeSm, color: onSurfaceDim)),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          width: 120,
+                          height: 1,
+                          color: onSurfaceDim.withValues(alpha: 0.3),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('Cachet / Signature', style: TextStyle(fontSize: context.fontSizeSm, color: onSurfaceDim)),
+                      ],
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    TextButton(
-                      onPressed: () => _printInvoice(order, companyName),
-                      child: const Text('Imprimer la facture'),
+                    TextButton.icon(
+                      icon: const Icon(Icons.print_rounded, size: 16),
+                      onPressed: () => _printInvoice(order, companyName, context),
+                      label: const Text('Facture'),
                     ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () => _printDeliveryNote(order, companyName),
-                      child: const Text('Bon de livraison'),
+                    const SizedBox(width: 4),
+                    TextButton.icon(
+                      icon: const Icon(Icons.receipt_long_rounded, size: 16),
+                      onPressed: () => _printDeliveryNote(order, companyName, context),
+                      label: const Text('Bon'),
                     ),
                   ],
                 ),
+                if (order.status != OrderStatus.cancelled)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (order.paymentStatus != PaymentStatus.paid)
+                        TextButton.icon(
+                          icon: const Icon(Icons.payment_rounded, size: 16),
+                          onPressed: () => _showEditPayment(ctx, order),
+                          label: const Text('Ajuster paiement'),
+                          style: TextButton.styleFrom(foregroundColor: AppColors.primary),
+                        ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        icon: const Icon(Icons.cancel_outlined, size: 16),
+                        onPressed: () => _confirmCancel(ctx, order),
+                        label: const Text('Annuler la vente'),
+                        style: TextButton.styleFrom(foregroundColor: AppColors.error),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
@@ -598,11 +704,142 @@ class InvoicesScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _printInvoice(Order order, String companyName) async {
-    await printInvoice(order, companyName);
+  void _confirmCancel(BuildContext ctx, Order order) {
+    final currencyFmt = NumberFormat.currency(locale: 'fr', symbol: 'FCFA ', decimalDigits: 0);
+    showDialog(
+      context: ctx,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Annuler la vente'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Annuler ${order.orderNumber} ?'),
+            const SizedBox(height: 8),
+            Text('Les articles seront remis en stock.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            if (order.amountDue > 0)
+              Text('La dette de ${currencyFmt.format(order.amountDue)} sera annulée.', style: TextStyle(fontSize: 12, color: AppColors.warning)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Non')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(c);
+              final orderProv = ctx.read<OrderProvider>();
+              final clientProv = ctx.read<ClientProvider>();
+              final stockProv = ctx.read<StockProvider>();
+              await orderProv.cancelOrder(
+                order,
+                stockProvider: stockProv,
+                clientProvider: clientProv,
+              );
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+            child: const Text('Oui, annuler'),
+          ),
+        ],
+      ),
+    );
   }
 
-  Future<void> _printDeliveryNote(Order order, String companyName) async {
-    await printDeliveryNote(order, companyName);
+  void _showEditPayment(BuildContext ctx, Order order) {
+    final currencyFmt = NumberFormat.currency(locale: 'fr', symbol: 'FCFA ', decimalDigits: 0);
+    final amountCtrl = TextEditingController(text: order.amountPaid.toStringAsFixed(0));
+
+    showDialog(
+      context: ctx,
+      builder: (c) => StatefulBuilder(
+        builder: (c, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Ajuster le paiement'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${order.orderNumber} — Total: ${currencyFmt.format(order.total)}', style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 8),
+              Text('Restant dû: ${currencyFmt.format(order.amountDue)}', style: TextStyle(fontSize: 12, color: AppColors.warning)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: const InputDecoration(
+                  labelText: 'Nouveau montant payé',
+                  prefixText: 'FCFA ',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(c), child: const Text('Annuler')),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  final text = amountCtrl.text.trim();
+                  final newAmount = text.isEmpty ? 0.0 : (int.tryParse(text) ?? 0).toDouble();
+                  final clamped = newAmount.clamp(0.0, order.total);
+                  final PaymentStatus status;
+                  if (clamped >= order.total) {
+                    status = PaymentStatus.paid;
+                  } else if (clamped > 0) {
+                    status = PaymentStatus.partial;
+                  } else {
+                    status = PaymentStatus.unpaid;
+                  }
+                  Navigator.pop(c);
+                  if (!ctx.mounted) return;
+                  final orderProv = ctx.read<OrderProvider>();
+                  final clientProv = ctx.read<ClientProvider>();
+                  await orderProv.updatePayment(
+                    order,
+                    status,
+                    clamped,
+                    clientProvider: clientProv,
+                  );
+                  if (ctx.mounted) Navigator.pop(ctx);
+                } catch (e) {
+                  if (c.mounted) Navigator.pop(c);
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text('Erreur: $e'), backgroundColor: AppColors.error),
+                    );
+                  }
+                }
+              },
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _paymentLabel(PaymentStatus status) {
+    switch (status) {
+      case PaymentStatus.paid:
+        return 'Payée';
+      case PaymentStatus.partial:
+        return 'Partielle';
+      case PaymentStatus.unpaid:
+        return 'Non payée';
+      case PaymentStatus.deposit:
+        return 'Acompte';
+    }
+  }
+
+  Future<void> _printInvoice(Order order, String companyName, BuildContext context) async {
+    final logoBase64 = context.read<SettingsProvider>().logoBase64;
+    await printInvoice(order, companyName, logoBase64: logoBase64);
+  }
+
+  Future<void> _printDeliveryNote(Order order, String companyName, BuildContext context) async {
+    final logoBase64 = context.read<SettingsProvider>().logoBase64;
+    await printDeliveryNote(order, companyName, logoBase64: logoBase64);
   }
 }

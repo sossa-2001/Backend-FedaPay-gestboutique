@@ -7,11 +7,232 @@ import '../../widgets/stat_card.dart';
 import '../../widgets/glassmorphism.dart';
 import '../../providers/product_provider.dart';
 import '../../providers/order_provider.dart';
+import '../../providers/subscription_provider.dart';
 import '../../models/order.dart';
+import '../../models/subscription_plan.dart';
 import '../../utils/responsive.dart';
+import '../subscription/subscription_screen.dart';
+import '../subscription/activation_code_screen.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _subDialogShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    context.read<SubscriptionProvider>().addListener(_onSubChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkSubscription());
+  }
+
+  @override
+  void dispose() {
+    context.read<SubscriptionProvider>().removeListener(_onSubChanged);
+    super.dispose();
+  }
+
+  void _onSubChanged() {
+    if (!mounted) return;
+    final sub = context.read<SubscriptionProvider>();
+    if (sub.isActive && _subDialogShown) {
+      _subDialogShown = false;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    } else if (!sub.isActive && !_subDialogShown) {
+      _checkSubscription();
+    }
+  }
+
+  void _checkSubscription() {
+    if (!mounted || _subDialogShown) return;
+    final sub = context.read<SubscriptionProvider>();
+    if (sub.subscription.isExpired) {
+      _subDialogShown = true;
+      _showExpiredDialog();
+    } else if (sub.subscription.isExpiringSoon) {
+      _subDialogShown = true;
+      _showExpiringSoonDialog(sub);
+    }
+  }
+
+  void _showExpiredDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 24),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Abonnement expiré', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Votre abonnement a expiré. Choisissez un plan pour continuer à utiliser l\'application.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ...SubscriptionPlan.plans.map((plan) => _buildPlanCard(plan)),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ActivationCodeScreen(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.vpn_key_rounded, size: 18),
+                  label: const Text('J\'ai un code d\'activation'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.primary),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showExpiringSoonDialog(SubscriptionProvider sub) {
+    final s = sub.subscription;
+    final remaining = s.daysRemaining;
+    final label = remaining > 0
+        ? '$remaining jour${remaining > 1 ? 's' : ''}'
+        : '${s.expiryDate!.difference(DateTime.now()).inMinutes} min';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.access_time_rounded, color: AppColors.warning, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text('Abonnement bientôt expiré', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Il vous reste $label.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            ...SubscriptionPlan.plans.map((plan) => _buildPlanCard(plan)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Plus tard'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlanCard(SubscriptionPlan plan) {
+    final currencyFmt = NumberFormat.currency(locale: 'fr', symbol: 'FCFA ', decimalDigits: 0);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () async {
+          Navigator.pop(context);
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => SubscriptionScreen(initialPlan: plan)),
+          );
+          if (mounted) {
+            _subDialogShown = false;
+            _checkSubscription();
+          }
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  plan.type == PlanType.soloStandard
+                      ? Icons.person_rounded
+                      : plan.type == PlanType.soloPro
+                          ? Icons.star_rounded
+                          : plan.type == PlanType.soloProDb
+                              ? Icons.cloud_rounded
+                              : Icons.devices_rounded,
+                  color: AppColors.primary,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(plan.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${currencyFmt.format(plan.monthlyFee)}/mois',
+                      style: const TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.primary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

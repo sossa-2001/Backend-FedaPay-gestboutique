@@ -115,11 +115,13 @@ class SembastDatabase implements DatabaseService {
   Future<void> addCategory(Category category) async {
     final id = _nextCategoryId++;
     category.id = id;
+    category.updatedAt = DateTime.now();
     await _categories.add(_db!, _categoryToMap(category));
   }
 
   @override
   Future<void> updateCategory(Category category) async {
+    category.updatedAt = DateTime.now();
     await _categories
         .record(category.id)
         .update(_db!, _categoryToMap(category));
@@ -131,10 +133,12 @@ class SembastDatabase implements DatabaseService {
   }
 
   Map<String, dynamic> _categoryToMap(Category c) => {
+    'name': c.name,
     if (c.description != null) 'description': c.description,
     'color': c.color,
     'icon': c.icon,
     if (c.createdAt != null) 'createdAt': c.createdAt!.millisecondsSinceEpoch,
+    if (c.updatedAt != null) 'updatedAt': c.updatedAt!.millisecondsSinceEpoch,
   };
 
   Category _categoryFromMap(Map<String, dynamic> map, int id) => Category()
@@ -145,6 +149,9 @@ class SembastDatabase implements DatabaseService {
     ..icon = map['icon'] as int?
     ..createdAt = map['createdAt'] != null
         ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int)
+        : null
+    ..updatedAt = map['updatedAt'] != null
+        ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int)
         : null;
 
   // === Clients ===
@@ -159,11 +166,13 @@ class SembastDatabase implements DatabaseService {
   Future<void> addClient(Client client) async {
     final id = _nextClientId++;
     client.id = id;
+    client.updatedAt = DateTime.now();
     await _clients.add(_db!, _clientToMap(client));
   }
 
   @override
   Future<void> updateClient(Client client) async {
+    client.updatedAt = DateTime.now();
     await _clients.record(client.id).update(_db!, _clientToMap(client));
   }
 
@@ -177,7 +186,9 @@ class SembastDatabase implements DatabaseService {
     if (c.phone != null) 'phone': c.phone,
     if (c.email != null) 'email': c.email,
     if (c.address != null) 'address': c.address,
+    'balance': c.balance,
     if (c.createdAt != null) 'createdAt': c.createdAt!.millisecondsSinceEpoch,
+    if (c.updatedAt != null) 'updatedAt': c.updatedAt!.millisecondsSinceEpoch,
   };
 
   Client _clientFromMap(Map<String, dynamic> map, int id) => Client()
@@ -186,8 +197,12 @@ class SembastDatabase implements DatabaseService {
     ..phone = map['phone'] as String?
     ..email = map['email'] as String?
     ..address = map['address'] as String?
+    ..balance = (map['balance'] as num?)?.toDouble() ?? 0
     ..createdAt = map['createdAt'] != null
         ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int)
+        : null
+    ..updatedAt = map['updatedAt'] != null
+        ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int)
         : null;
 
   // === Products ===
@@ -248,6 +263,8 @@ class SembastDatabase implements DatabaseService {
     'isActive': p.isActive,
     if (p.createdAt != null) 'createdAt': p.createdAt!.millisecondsSinceEpoch,
     if (p.updatedAt != null) 'updatedAt': p.updatedAt!.millisecondsSinceEpoch,
+    if (p.discountTiers.isNotEmpty) 'discountTiers': p.discountTiersJson,
+    if (p.manualDiscountMax != null) 'manualDiscountMax': p.manualDiscountMax,
   };
 
   Product _productFromMap(Map<String, dynamic> map, int id) => Product()
@@ -267,7 +284,9 @@ class SembastDatabase implements DatabaseService {
         : null
     ..updatedAt = map['updatedAt'] != null
         ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int)
-        : null;
+        : null
+    ..discountTiers = Product.discountTiersFromJson(map['discountTiers'] as String?)
+    ..manualDiscountMax = (map['manualDiscountMax'] as num?)?.toDouble();
 
   // === Stock Movements ===
 
@@ -299,8 +318,9 @@ class SembastDatabase implements DatabaseService {
           movement.quantity = product.stockQuantity - movement.previousStock;
           break;
       }
-      movement.newStock = product.stockQuantity;
-      await _products.record(product.id).update(_db!, _productToMap(product));
+    movement.newStock = product.stockQuantity;
+    movement.updatedAt = DateTime.now();
+    await _products.record(product.id).update(_db!, _productToMap(product));
     }
     final id = _nextMovementId++;
     movement.id = id;
@@ -332,6 +352,7 @@ class SembastDatabase implements DatabaseService {
     if (m.reason != null) 'reason': m.reason,
     if (m.reference != null) 'reference': m.reference,
     if (m.createdAt != null) 'createdAt': m.createdAt!.millisecondsSinceEpoch,
+    if (m.updatedAt != null) 'updatedAt': m.updatedAt!.millisecondsSinceEpoch,
     if (m.userId != null) 'userId': m.userId,
   };
 
@@ -347,6 +368,9 @@ class SembastDatabase implements DatabaseService {
         ..reference = map['reference'] as String?
         ..createdAt = map['createdAt'] != null
             ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int)
+            : null
+        ..updatedAt = map['updatedAt'] != null
+            ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int)
             : null
         ..userId = map['userId'] as int?;
 
@@ -395,6 +419,7 @@ class SembastDatabase implements DatabaseService {
     final id = _nextOrderId++;
     order.id = id;
     order.createdAt ??= DateTime.now();
+    order.updatedAt = DateTime.now();
     final orderMap = _orderToMap(order);
     // Remove items from order map (stored separately)
     final orderKey = await _orders.add(_db!, orderMap);
@@ -412,8 +437,22 @@ class SembastDatabase implements DatabaseService {
   Future<void> updateOrderStatus(int orderId, OrderStatus status) async {
     final map = await _orders.record(orderId).get(_db!);
     if (map != null) {
-      map['status'] = status.index;
-      await _orders.record(orderId).update(_db!, map);
+      final updated = Map<String, dynamic>.from(map);
+      updated['status'] = status.index;
+      updated['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
+      await _orders.record(orderId).update(_db!, updated);
+    }
+  }
+
+  @override
+  Future<void> updateOrderPayment(int orderId, PaymentStatus paymentStatus, double amountPaid) async {
+    final map = await _orders.record(orderId).get(_db!);
+    if (map != null) {
+      final updated = Map<String, dynamic>.from(map);
+      updated['paymentStatus'] = paymentStatus.index;
+      updated['amountPaid'] = amountPaid;
+      updated['updatedAt'] = DateTime.now().millisecondsSinceEpoch;
+      await _orders.record(orderId).update(_db!, updated);
     }
   }
 
@@ -427,7 +466,12 @@ class SembastDatabase implements DatabaseService {
     'totalProfit': o.totalProfit,
     if (o.paymentMethod != null) 'paymentMethod': o.paymentMethod,
     if (o.customerName != null) 'customerName': o.customerName,
+    if (o.customerId != null) 'customerId': o.customerId,
+    if (o.sellerName != null) 'sellerName': o.sellerName,
+    'paymentStatus': o.paymentStatus.index,
+    'amountPaid': o.amountPaid,
     if (o.createdAt != null) 'createdAt': o.createdAt!.millisecondsSinceEpoch,
+    if (o.updatedAt != null) 'updatedAt': o.updatedAt!.millisecondsSinceEpoch,
   };
 
   Order _orderFromMap(Map<String, dynamic> map, int id) => Order()
@@ -441,8 +485,15 @@ class SembastDatabase implements DatabaseService {
     ..totalProfit = (map['totalProfit'] as num?)?.toDouble() ?? 0
     ..paymentMethod = map['paymentMethod'] as String?
     ..customerName = map['customerName'] as String?
+    ..customerId = map['customerId'] as int?
+    ..sellerName = map['sellerName'] as String?
+    ..paymentStatus = PaymentStatus.values[map['paymentStatus'] as int? ?? 0]
+    ..amountPaid = (map['amountPaid'] as num?)?.toDouble() ?? 0
     ..createdAt = map['createdAt'] != null
         ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int)
+        : null
+    ..updatedAt = map['updatedAt'] != null
+        ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'] as int)
         : null;
 
   Map<String, dynamic> _orderItemToMap(OrderItem i) => {
@@ -518,6 +569,20 @@ class SembastDatabase implements DatabaseService {
   ) async {
     await _orderItems.record(id).put(_db!, data);
     if (id >= _nextOrderItemId) _nextOrderItemId = id + 1;
+  }
+
+  @override
+  Future<void> importSettings(Map<String, dynamic> data) async {
+    final existing = (await _settings.record(1).get(_settingsDb!)) ?? {};
+    for (final entry in data.entries) {
+      existing[entry.key] = entry.value;
+    }
+    await _settings.record(1).put(_settingsDb!, existing);
+  }
+
+  @override
+  Future<void> importReport(String key, Map<String, dynamic> data) async {
+    await _reports.record(key).put(_db!, data);
   }
 
   @override

@@ -39,6 +39,7 @@ abstract class DatabaseService {
   Future<Order?> getOrderWithItems(int orderId);
   Future<void> addOrder(Order order);
   Future<void> updateOrderStatus(int orderId, OrderStatus status);
+  Future<void> updateOrderPayment(int orderId, PaymentStatus paymentStatus, double amountPaid);
 
   // Settings
   Future<String?> getSetting(String key);
@@ -56,5 +57,7 @@ abstract class DatabaseService {
   Future<void> importStockMovement(int id, Map<String, dynamic> data);
   Future<void> importOrder(int id, Map<String, dynamic> data);
   Future<void> importOrderItem(int id, int orderId, Map<String, dynamic> data);
+  Future<void> importSettings(Map<String, dynamic> data);
+  Future<void> importReport(String key, Map<String, dynamic> data);
   Future<void> clearAll();
 }

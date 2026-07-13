@@ -45,6 +45,8 @@ class SyncService {
         _pullProducts(),
         _pullStockMovements(),
         _pullOrders(),
+        _pullSettings(),
+        _pullReports(),
       ]).timeout(const Duration(seconds: 60));
       if (onPullComplete != null) await onPullComplete!();
     } catch (_) {}
@@ -117,6 +119,33 @@ class SyncService {
         await _db.importOrderItem(itemId, id, item.data());
       }
     }
+  }
+
+  Future<void> _pullSettings() async {
+    try {
+      final doc = await _firestore!
+          .collection(_storePath('settings'))
+          .doc('default')
+          .get()
+          .timeout(const Duration(seconds: 15));
+      if (doc.exists && doc.data() != null) {
+        await _db.importSettings(doc.data()!);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _pullReports() async {
+    try {
+      final docs = await _firestore!
+          .collection(_storePath('reports'))
+          .get()
+          .timeout(const Duration(seconds: 20));
+      for (final doc in docs.docs) {
+        if (doc.data().isNotEmpty) {
+          await _db.importReport(doc.id, doc.data());
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> syncAll() async {
@@ -231,7 +260,10 @@ class SyncService {
       await _firestore!
           .collection(_storePath('orders'))
           .doc(orderId.toString())
-          .update({'status': statusIndex})
+          .update({
+            'status': statusIndex,
+            'updatedAt': DateTime.now().millisecondsSinceEpoch,
+          })
           .timeout(const Duration(seconds: 15));
     } catch (_) {}
   }
@@ -316,9 +348,11 @@ class SyncService {
   Future<void> _syncSettings() async {
     final companyName = await _db.getSetting('companyName');
     final isDarkMode = await _db.getSetting('isDarkMode');
+    final logoBase64 = await _db.getSetting('logoBase64');
     final map = <String, String>{};
     if (companyName != null) map['companyName'] = companyName;
     if (isDarkMode != null) map['isDarkMode'] = isDarkMode;
+    if (logoBase64 != null) map['logoBase64'] = logoBase64;
     if (map.isNotEmpty) {
       await _firestore!
           .collection(_storePath('settings'))
@@ -356,6 +390,7 @@ class SyncService {
     'color': c.color,
     'icon': c.icon,
     if (c.createdAt != null) 'createdAt': c.createdAt!.millisecondsSinceEpoch,
+    if (c.updatedAt != null) 'updatedAt': c.updatedAt!.millisecondsSinceEpoch,
   };
 
   Map<String, dynamic> _clientToMap(Client c) => {
@@ -363,7 +398,9 @@ class SyncService {
     if (c.phone != null) 'phone': c.phone,
     if (c.email != null) 'email': c.email,
     if (c.address != null) 'address': c.address,
+    'balance': c.balance,
     if (c.createdAt != null) 'createdAt': c.createdAt!.millisecondsSinceEpoch,
+    if (c.updatedAt != null) 'updatedAt': c.updatedAt!.millisecondsSinceEpoch,
   };
 
   Map<String, dynamic> _productToMap(Product p) => {
@@ -379,6 +416,8 @@ class SyncService {
     'isActive': p.isActive,
     if (p.createdAt != null) 'createdAt': p.createdAt!.millisecondsSinceEpoch,
     if (p.updatedAt != null) 'updatedAt': p.updatedAt!.millisecondsSinceEpoch,
+    if (p.discountTiers.isNotEmpty) 'discountTiers': p.discountTiersJson,
+    if (p.manualDiscountMax != null) 'manualDiscountMax': p.manualDiscountMax,
   };
 
   Map<String, dynamic> _movementToMap(StockMovement m) => {
@@ -390,6 +429,7 @@ class SyncService {
     if (m.reason != null) 'reason': m.reason,
     if (m.reference != null) 'reference': m.reference,
     if (m.createdAt != null) 'createdAt': m.createdAt!.millisecondsSinceEpoch,
+    if (m.updatedAt != null) 'updatedAt': m.updatedAt!.millisecondsSinceEpoch,
     if (m.userId != null) 'userId': m.userId,
   };
 
@@ -403,7 +443,12 @@ class SyncService {
     'totalProfit': o.totalProfit,
     if (o.paymentMethod != null) 'paymentMethod': o.paymentMethod,
     if (o.customerName != null) 'customerName': o.customerName,
+    if (o.customerId != null) 'customerId': o.customerId,
+    if (o.sellerName != null) 'sellerName': o.sellerName,
+    'paymentStatus': o.paymentStatus.index,
+    'amountPaid': o.amountPaid,
     if (o.createdAt != null) 'createdAt': o.createdAt!.millisecondsSinceEpoch,
+    if (o.updatedAt != null) 'updatedAt': o.updatedAt!.millisecondsSinceEpoch,
   };
 
   Map<String, dynamic> _orderItemToMap(models.OrderItem i) => {

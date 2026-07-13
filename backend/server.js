@@ -3,6 +3,8 @@ const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 app.use(cors());
@@ -20,6 +22,8 @@ const FEDAPAY_BASE = FEDAPAY_ENV === 'sandbox'
   ? 'https://sandbox-api.fedapay.com/v1'
   : 'https://api.fedapay.com/v1';
 const CALLBACK_URL = process.env.CALLBACK_URL || 'https://backend-fedapay-gestboutique.onrender.com/payment-redirect';
+const ACTIVATION_CODES_FILE = path.join(__dirname, 'activation_codes.json');
+const ADMIN_SECRET = process.env.ADMIN_SECRET || 'gb-admin-2026';
 
 const FEDAPAY_HEADERS = {
   'Authorization': `Bearer ${FEDAPAY_SECRET_KEY}`,
@@ -80,7 +84,163 @@ async function getFedaPayTransaction(transactionId) {
   return res.data;
 }
 
-// ---------- Routes ----------
+// ---------- Activation Codes ----------
+
+function loadActivationCodes() {
+  try {
+    if (fs.existsSync(ACTIVATION_CODES_FILE)) {
+      const data = fs.readFileSync(ACTIVATION_CODES_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('Erreur lecture codes:', e.message);
+  }
+  return [];
+}
+
+function saveActivationCodes(codes) {
+  try {
+    fs.writeFileSync(ACTIVATION_CODES_FILE, JSON.stringify(codes, null, 2), 'utf8');
+  } catch (e) {
+    console.error('Erreur écriture codes:', e.message);
+  }
+}
+
+function generateCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const segments = [];
+  for (let s = 0; s < 3; s++) {
+    let seg = '';
+    for (let i = 0; i < 4; i++) {
+      seg += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    segments.push(seg);
+  }
+  return `GB-${segments.join('-')}`;
+}
+
+// Générer un code d'activation
+app.post('/activation-codes/generate', (req, res) => {
+  const { admin_secret, plan_type, duration_months, quantity } = req.body;
+
+  if (admin_secret !== ADMIN_SECRET) {
+    return res.status(403).json({ success: false, message: 'Non autorisé' });
+  }
+
+  const months = duration_months || 6;
+  const plan = plan_type || 'soloProMulti';
+  const qty = Math.min(quantity || 1, 50);
+  const codes = loadActivationCodes();
+  const generated = [];
+
+  for (let i = 0; i < qty; i++) {
+    let code;
+    do {
+      code = generateCode();
+    } while (codes.some(c => c.code === code));
+
+    const entry = {
+      code,
+      plan_type: plan,
+      duration_months: months,
+      is_used: false,
+      created_at: new Date().toISOString(),
+      redeemed_at: null,
+      redeemed_by: null,
+    };
+    codes.push(entry);
+    generated.push(entry);
+  }
+
+  saveActivationCodes(codes);
+  console.log(`${qty} code(s) d'activation généré(s) pour ${plan} (${months} mois)`);
+
+  return res.json({
+    success: true,
+    codes: generated.map(c => ({
+      code: c.code,
+      plan_type: c.plan_type,
+      duration_months: c.duration_months,
+    })),
+  });
+});
+
+// Valider et activer un code
+app.post('/activation-codes/validate', (req, res) => {
+  const { code, store_id } = req.body;
+
+  if (!code || !store_id) {
+    return res.status(400).json({ success: false, message: 'Code et store_id requis' });
+  }
+
+  const cleanCode = code.trim().toUpperCase();
+  const codes = loadActivationCodes();
+  const entry = codes.find(c => c.code === cleanCode);
+
+  if (!entry) {
+    return res.status(404).json({ success: false, message: 'Code d\'activation invalide' });
+  }
+
+  if (entry.is_used) {
+    return res.status(400).json({
+      success: false,
+      message: `Code déjà utilisé le ${entry.redeemed_at} par ${entry.redeemed_by}`,
+    });
+  }
+
+  entry.is_used = true;
+  entry.redeemed_at = new Date().toISOString();
+  entry.redeemed_by = store_id;
+  saveActivationCodes(codes);
+
+  console.log(`Code激活é: ${cleanCode} → ${store_id} (${entry.plan_type}, ${entry.duration_months} mois)`);
+
+  return res.json({
+    success: true,
+    plan_type: entry.plan_type,
+    duration_months: entry.duration_months,
+    message: `${entry.duration_months} mois d'abonnement ${entry.plan_type} activés`,
+  });
+});
+
+// Lister les codes (admin)
+app.get('/activation-codes', (req, res) => {
+  const adminSecret = req.headers['x-admin-secret'];
+  if (adminSecret !== ADMIN_SECRET) {
+    return res.status(403).json({ success: false, message: 'Non autorisé' });
+  }
+
+  const codes = loadActivationCodes();
+  return res.json({
+    success: true,
+    total: codes.length,
+    available: codes.filter(c => !c.is_used).length,
+    used: codes.filter(c => c.is_used).length,
+    codes: codes,
+  });
+});
+
+// Supprimer un code (admin)
+app.delete('/activation-codes/:code', (req, res) => {
+  const adminSecret = req.headers['x-admin-secret'];
+  if (adminSecret !== ADMIN_SECRET) {
+    return res.status(403).json({ success: false, message: 'Non autorisé' });
+  }
+
+  const code = req.params.code.toUpperCase();
+  const codes = loadActivationCodes();
+  const idx = codes.findIndex(c => c.code === code);
+
+  if (idx === -1) {
+    return res.status(404).json({ success: false, message: 'Code introuvable' });
+  }
+
+  codes.splice(idx, 1);
+  saveActivationCodes(codes);
+  return res.json({ success: true, message: 'Code supprimé' });
+});
+
+// ---------- Routes existantes ----------
 
 app.get('/', (_req, res) => res.json({ status: 'ok', service: 'Gest-Boutique FedaPay' }));
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

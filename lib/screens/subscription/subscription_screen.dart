@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/subscription_plan.dart';
 import '../../providers/subscription_provider.dart';
 import '../../theme/app_colors.dart';
+import 'activation_code_screen.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   final SubscriptionPlan? initialPlan;
@@ -45,6 +46,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               )),
           const SizedBox(height: 24),
           _buildCurrentPlanDetails(context, sub),
+          const SizedBox(height: 24),
+          _buildActivationCodeButton(context),
           const SizedBox(height: 24),
           _buildContactInfo(context),
         ],
@@ -308,9 +311,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: isCurrentPlan
-                    ? null
-                    : () => _showPaymentDialog(context, prov, plan),
+                onPressed: () => _showPaymentDialog(context, prov, plan),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: isCurrentPlan
                       ? AppColors.success
@@ -320,7 +321,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 ),
                 child: Text(
                   isCurrentPlan
-                      ? 'Plan actuel'
+                      ? 'Renouveler'
                       : 'Choisir ${NumberFormat.currency(locale: 'fr', symbol: '', decimalDigits: 0).format(fee)} $period',
                 ),
               ),
@@ -405,6 +406,32 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   color: AppColors.primary,
                   letterSpacing: 1)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActivationCodeButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ActivationCodeScreen(),
+            ),
+          );
+        },
+        icon: const Icon(Icons.vpn_key_rounded, size: 20),
+        label: const Text('J\'ai un code d\'activation'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.primary),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
       ),
     );
   }

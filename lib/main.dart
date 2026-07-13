@@ -17,6 +17,7 @@ import 'providers/sync_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/subscription_provider.dart';
 import 'services/sync_service.dart';
+import 'l10n/locale_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,8 @@ class _AppBootstrapState extends State<_AppBootstrap> {
       final posProvider = PosProvider(orderProvider, stockProvider);
       final reportProvider = ReportProvider(orderProvider, db, syncService);
       final settingsProvider = SettingsProvider(db, syncService);
+      final localeProvider = LocaleProvider(db);
+      await localeProvider.load();
       final syncProvider = SyncProvider(syncService, authProvider);
       final subscriptionProvider = SubscriptionProvider(
         db, firestore, authProvider.currentUserId,
@@ -110,6 +113,7 @@ class _AppBootstrapState extends State<_AppBootstrap> {
             ChangeNotifierProvider.value(value: settingsProvider),
             ChangeNotifierProvider.value(value: syncProvider),
             ChangeNotifierProvider.value(value: subscriptionProvider),
+            ChangeNotifierProvider.value(value: localeProvider),
             ChangeNotifierProvider.value(value: authProvider),
           ],
           child: const GestBoutiqueApp(),

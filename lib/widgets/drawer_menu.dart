@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
 import '../theme/app_colors.dart';
 
 class DrawerMenuItem {
@@ -30,9 +33,9 @@ class DrawerMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final surface = theme.colorScheme.surface;
     final onSurface = theme.colorScheme.onSurface;
     final isDark = theme.brightness == Brightness.dark;
+    final settings = context.watch<SettingsProvider>();
 
     return Drawer(
       child: Container(
@@ -52,26 +55,7 @@ class DrawerMenu extends StatelessWidget {
               padding: const EdgeInsets.only(left: 20, top: 40),
               child: Row(
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [AppColors.primary, AppColors.dark],
-                      ),
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'G',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+                  _buildLogo(settings),
                   const SizedBox(width: 12),
                   Text(
                     companyName,
@@ -153,6 +137,45 @@ class DrawerMenu extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogo(SettingsProvider settings) {
+    if (settings.logoBase64 != null) {
+      try {
+        final bytes = base64Decode(settings.logoBase64!);
+        return Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            image: DecorationImage(
+              image: MemoryImage(bytes),
+              fit: BoxFit.contain,
+            ),
+          ),
+        );
+      } catch (_) {}
+    }
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, AppColors.dark],
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: const Center(
+        child: Text(
+          'G',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
     );

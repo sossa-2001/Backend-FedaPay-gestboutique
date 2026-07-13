@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/order.dart';
+import '../models/stock_movement.dart';
 import '../data/database_service.dart';
 import '../services/sync_service.dart';
+import 'client_provider.dart';
+import 'stock_provider.dart';
 
 class OrderProvider extends ChangeNotifier {
   final DatabaseService _db;
@@ -41,6 +44,68 @@ class OrderProvider extends ChangeNotifier {
   Future<void> updateOrderStatus(int orderId, OrderStatus status) async {
     await _db.updateOrderStatus(orderId, status);
     _sync.updateOrderStatus(orderId, status.index);
+    await loadOrdersWithItems();
+  }
+
+  Future<void> cancelOrder(
+    Order order, {
+    StockProvider? stockProvider,
+    ClientProvider? clientProvider,
+  }) async {
+    await _db.updateOrderStatus(order.id, OrderStatus.cancelled);
+    _sync.updateOrderStatus(order.id, OrderStatus.cancelled.index);
+
+    if (stockProvider != null) {
+      for (final item in order.items) {
+        final reversal = StockMovement()
+          ..productId = item.productId
+          ..type = StockMoveType.entry
+          ..quantity = item.quantity
+          ..reason = 'Annulation - ${order.orderNumber}';
+        await stockProvider.addMovement(reversal);
+      }
+    }
+
+    if (clientProvider != null && order.customerId != null) {
+      final client = clientProvider.clients
+          .where((c) => c.id == order.customerId)
+          .firstOrNull;
+      if (client != null) {
+        client.balance -= (order.total - order.amountPaid);
+        await clientProvider.updateClient(client);
+      }
+    }
+
+    await loadOrdersWithItems();
+  }
+
+  Future<void> updatePayment(
+    Order order,
+    PaymentStatus newStatus,
+    double newAmountPaid, {
+    ClientProvider? clientProvider,
+  }) async {
+    final oldDue = order.total - order.amountPaid;
+    final newDue = order.total - newAmountPaid;
+    final balanceDelta = newDue - oldDue;
+
+    await _db.updateOrderPayment(order.id, newStatus, newAmountPaid);
+    order
+      ..paymentStatus = newStatus
+      ..amountPaid = newAmountPaid
+      ..updatedAt = DateTime.now();
+    _sync.syncOrder(order);
+
+    if (clientProvider != null && order.customerId != null) {
+      final client = clientProvider.clients
+          .where((c) => c.id == order.customerId)
+          .firstOrNull;
+      if (client != null) {
+        client.balance += balanceDelta;
+        await clientProvider.updateClient(client);
+      }
+    }
+
     await loadOrdersWithItems();
   }
 

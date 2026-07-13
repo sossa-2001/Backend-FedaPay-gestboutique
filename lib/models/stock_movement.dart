@@ -10,9 +10,11 @@ class StockMovement {
   String? reason;
   String? reference;
   DateTime? createdAt;
+  DateTime? updatedAt;
   int? userId;
 
   StockMovement() {
     createdAt = DateTime.now();
+    updatedAt = DateTime.now();
   }
 }

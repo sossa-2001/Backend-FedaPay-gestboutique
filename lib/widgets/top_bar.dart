@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
@@ -17,6 +18,7 @@ class TopBar extends StatelessWidget {
     final onSurfaceDim = onSurface.withValues(alpha: 0.6);
     final isDark = theme.brightness == Brightness.dark;
     final isMobile = context.isMobile;
+    final settings = context.watch<SettingsProvider>();
 
     final bgColor = isDark ? const Color(0xFF16162A) : AppColors.glassBg;
 
@@ -38,6 +40,8 @@ class TopBar extends StatelessWidget {
               color: onSurfaceDim,
             ),
           if (onMenuTap != null) SizedBox(width: isMobile ? 4 : 8),
+          _buildLogo(settings),
+          if (settings.logoBase64 != null) const SizedBox(width: 10),
           Text(
             title,
             style: TextStyle(
@@ -58,5 +62,25 @@ class TopBar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildLogo(SettingsProvider settings) {
+    if (settings.logoBase64 == null) return const SizedBox.shrink();
+    try {
+      final bytes = base64Decode(settings.logoBase64!);
+      return Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          image: DecorationImage(
+            image: MemoryImage(bytes),
+            fit: BoxFit.contain,
+          ),
+        ),
+      );
+    } catch (_) {
+      return const SizedBox.shrink();
+    }
   }
 }

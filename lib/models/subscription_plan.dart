@@ -78,7 +78,7 @@ class SubscriptionPlan {
       type: PlanType.soloProMulti,
       name: 'Solo Pro + DB Multi',
       description: 'Multi-secrétaire + multi-surveillance',
-      monthlyFee: 60000,
+      monthlyFee: 100,
       features: [
         'Tout du plan Solo Pro + DB',
         'Multi-secrétaires',

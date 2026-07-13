@@ -27,6 +27,11 @@ class StockProvider extends ChangeNotifier {
   Future<void> addMovement(StockMovement movement) async {
     await _db.addStockMovement(movement);
     _sync.syncStockMovement(movement);
+    // Sync the affected product's updated stockQuantity to Firestore
+    final product = await _db.getProduct(movement.productId);
+    if (product != null) {
+      _sync.syncProduct(product);
+    }
     await Future.wait([loadMovements(), _productProvider.loadProducts()]);
   }
 

@@ -60,6 +60,7 @@ class SyncProvider extends ChangeNotifier {
     notifyListeners();
     try {
       await _syncService.syncAll();
+      await _syncService.pullFromFirestore();
       _lastSyncAt = DateTime.now();
       _status = SyncStatus.completed;
     } catch (_) {

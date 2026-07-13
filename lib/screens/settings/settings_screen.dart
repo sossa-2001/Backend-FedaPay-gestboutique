@@ -1,9 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/sync_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/subscription_provider.dart';
+import '../../l10n/app_localizations.dart';
+import '../../l10n/locale_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/glassmorphism.dart';
 import '../../utils/responsive.dart';
@@ -31,7 +34,7 @@ class SettingsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Paramètres', style: Theme.of(context).textTheme.displaySmall),
+            Text(context.tr('settings'), style: Theme.of(context).textTheme.displaySmall),
             const SizedBox(height: 24),
             GlassCard(
               glowOpacity: 0.03,
@@ -39,7 +42,7 @@ class SettingsScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Général',
+                    context.tr('general'),
                     style: TextStyle(
                       fontSize: context.fontSizeLg,
                       fontWeight: FontWeight.w600,
@@ -50,17 +53,22 @@ class SettingsScreen extends StatelessWidget {
                   _settingItem(
                     context,
                     Icons.store_rounded,
-                    'Nom de l\'entreprise',
+                    context.tr('company_name'),
                     settings.companyName,
                     onTap: () => _editCompanyName(context, settings),
                     theme: theme,
                   ),
                   _divider(theme),
+                  _logoItem(context, settings, theme),
+                  _divider(theme),
                   _settingItem(
                     context,
                     Icons.language_rounded,
-                    'Langue',
-                    'Français',
+                    context.tr('language'),
+                    context.watch<LocaleProvider>().locale.languageCode == 'en'
+                        ? 'English'
+                        : 'Français',
+                    onTap: () => _showLanguagePicker(context),
                     theme: theme,
                   ),
                   _divider(theme),
@@ -424,6 +432,146 @@ class SettingsScreen extends StatelessWidget {
         '${dt.month.toString().padLeft(2, '0')}/'
         '${dt.year} ${dt.hour.toString().padLeft(2, '0')}:'
         '${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  void _showLanguagePicker(BuildContext context) {
+    final localeProv = context.read<LocaleProvider>();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(context.tr('language')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.check, color: Colors.transparent),
+              title: const Text('Français'),
+              trailing: localeProv.locale.languageCode == 'fr'
+                  ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                  : null,
+              onTap: () {
+                localeProv.setLocale(const Locale('fr'));
+                Navigator.pop(ctx);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.check, color: Colors.transparent),
+              title: const Text('English'),
+              trailing: localeProv.locale.languageCode == 'en'
+                  ? const Icon(Icons.check_circle_rounded, color: AppColors.primary)
+                  : null,
+              onTap: () {
+                localeProv.setLocale(const Locale('en'));
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _logoItem(BuildContext context, SettingsProvider settings, ThemeData theme) {
+    final onSurface = theme.colorScheme.onSurface;
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: () => _showLogoOptions(context, settings),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            _buildLogoPreview(settings),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Logo',
+                    style: TextStyle(fontSize: context.fontSizeMd, color: onSurface),
+                  ),
+                  Text(
+                    settings.logoBase64 != null ? 'Logo défini' : 'Aucun logo',
+                    style: TextStyle(
+                      fontSize: context.fontSizeSm,
+                      color: onSurface.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (settings.logoBase64 != null)
+              IconButton(
+                icon: const Icon(Icons.delete_rounded, color: Colors.red, size: 20),
+                onPressed: () => settings.removeLogo(),
+              ),
+            Icon(Icons.edit_rounded, size: context.iconSm, color: AppColors.primary),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoPreview(SettingsProvider settings) {
+    if (settings.logoBase64 == null) {
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [AppColors.primary, AppColors.dark]),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Center(
+          child: Icon(Icons.image_rounded, color: Colors.white, size: 22),
+        ),
+      );
+    }
+    try {
+      final bytes = base64Decode(settings.logoBase64!);
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          image: DecorationImage(image: MemoryImage(bytes), fit: BoxFit.contain),
+        ),
+      );
+    } catch (_) {
+      return const Icon(Icons.broken_image_rounded, size: 40, color: Colors.grey);
+    }
+  }
+
+  void _showLogoOptions(BuildContext context, SettingsProvider settings) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Logo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: AppColors.primary),
+              title: const Text('Choisir une image'),
+              onTap: () {
+                Navigator.pop(ctx);
+                settings.pickLogo();
+              },
+            ),
+            if (settings.logoBase64 != null)
+              ListTile(
+                leading: const Icon(Icons.delete_rounded, color: Colors.red),
+                title: const Text('Supprimer le logo', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  settings.removeLogo();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _editCompanyName(BuildContext context, SettingsProvider settings) {

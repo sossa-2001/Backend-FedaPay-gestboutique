@@ -89,7 +89,10 @@ class FedaPayService {
     final uri = Uri.parse(url);
     try {
       if (await canLaunchUrl(uri)) {
-        return await launchUrl(uri, mode: LaunchMode.platformDefault);
+        return await launchUrl(
+          uri,
+          mode: LaunchMode.inAppWebView,
+        );
       }
     } catch (_) {}
     return false;

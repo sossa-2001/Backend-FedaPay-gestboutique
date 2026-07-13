@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../data/database_service.dart';
 import '../models/subscription_plan.dart';
 import '../services/fedapay_service.dart';
+import '../services/activation_code_service.dart';
 
 class SubscriptionProvider extends ChangeNotifier {
   final DatabaseService _db;
@@ -53,7 +54,7 @@ class SubscriptionProvider extends ChangeNotifier {
       _subscription.startDate = DateTime.now();
       _subscription.expiryDate = DateTime.now().add(const Duration(days: 30));
       _subscription.lastPaymentDate = DateTime.now();
-      _subscription.planType = PlanType.soloStandard;
+      _subscription.planType = PlanType.soloProMulti;
       await _persist();
     } else {
       await _persist();
@@ -171,6 +172,52 @@ class SubscriptionProvider extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
     return true;
+  }
+
+  Future<ActivationCodeResult> activateWithCode(String code, String storeId) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final result = await ActivationCodeService.validateCode(
+      code: code,
+      storeId: storeId,
+    );
+
+    if (result.success) {
+      final planType = _parsePlanType(result.planType ?? 'soloProMulti');
+      final months = result.durationMonths ?? 6;
+
+      _subscription.planType = planType;
+      _subscription.isActive = true;
+      _subscription.isAnnual = false;
+
+      if (_subscription.expiryDate != null && !_subscription.isExpired) {
+        _subscription.expiryDate = _subscription.expiryDate!.add(Duration(days: months * 30));
+      } else {
+        _subscription.expiryDate = DateTime.now().add(Duration(days: months * 30));
+      }
+
+      _subscription.startDate ??= DateTime.now();
+      _subscription.lastPaymentDate = DateTime.now();
+      await _persist();
+    }
+
+    _isLoading = false;
+    notifyListeners();
+    return result;
+  }
+
+  PlanType _parsePlanType(String type) {
+    switch (type) {
+      case 'soloPro':
+        return PlanType.soloPro;
+      case 'soloProDb':
+        return PlanType.soloProDb;
+      case 'soloProMulti':
+        return PlanType.soloProMulti;
+      default:
+        return PlanType.soloProMulti;
+    }
   }
 
   Future<void> upgradePlan(PlanType newPlan,

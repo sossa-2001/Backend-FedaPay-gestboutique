@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
 import '../theme/app_colors.dart';
 import '../utils/constants.dart';
 import '../utils/responsive.dart';
@@ -75,9 +78,9 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final surface = theme.colorScheme.surface;
     final onSurface = theme.colorScheme.onSurface;
     final isDark = theme.brightness == Brightness.dark;
+    final settings = context.watch<SettingsProvider>();
 
     return AnimatedBuilder(
       animation: _widthAnim,
@@ -105,26 +108,7 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
                 padding: EdgeInsets.symmetric(horizontal: isExpanded ? 20 : 16),
                 child: Row(
                   children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primary, AppColors.dark],
-                        ),
-                        borderRadius: BorderRadius.circular(22),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'G',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: context.fontSizeXl,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
+                    _buildLogo(settings, isExpanded),
                     if (isExpanded) ...[
                       const SizedBox(width: 12),
                       Text(
@@ -231,6 +215,45 @@ class _SidebarState extends State<Sidebar> with SingleTickerProviderStateMixin {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildLogo(SettingsProvider settings, bool isExpanded) {
+    if (settings.logoBase64 != null) {
+      try {
+        final bytes = base64Decode(settings.logoBase64!);
+        return Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            image: DecorationImage(
+              image: MemoryImage(bytes),
+              fit: BoxFit.contain,
+            ),
+          ),
+        );
+      } catch (_) {}
+    }
+    return Container(
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.primary, AppColors.dark],
+        ),
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Center(
+        child: Text(
+          'G',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: context.fontSizeXl,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
     );
   }
 }
